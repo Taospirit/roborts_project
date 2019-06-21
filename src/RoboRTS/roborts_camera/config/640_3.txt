@@ -1,0 +1,20 @@
+camera_matrix {
+    data: 442.956325
+    data: 0.0
+    data: 324.863998
+    data: 0.0
+    data: 441.677590
+    data: 209.987355
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: 0.039449
+    data: -0.041441
+    data: 0.001093
+    data: 0.001456
+    data: 0.0
+  }
+

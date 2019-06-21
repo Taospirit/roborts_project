@@ -1,0 +1,10 @@
+serial_port           : "/dev/serial_sdk"
+odom_frame_name       : "/robot_0/odom"
+robot_base_frame_name : "/robot_0/base_link"
+gimbal_frame_name     : "/robot_0/gimbal"
+speed_linear_ratio    : 1000
+speed_angular_ratio   : 1800
+speed_linear_max      : 1
+speed_angular_max     : 1
+speed_linear_acc_max  : 5
+speed_angular_acc_max : 5

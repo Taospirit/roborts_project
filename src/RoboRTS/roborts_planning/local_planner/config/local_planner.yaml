@@ -1,0 +1,4 @@
+global_frame_name         : "/odom"
+robot_base_frame_name     : "/base_link"
+sensor_frame_name         : "/base_laser_link"
+

@@ -1,0 +1,128 @@
+camera: {
+  camera_name: "front_camera"		#需要与armor_detection.prototxt中camera_name保持一致
+  camera_type: "mvsua"				      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+  camera_path: "/home/w/Desktop/icra_vision_test/test_video/test.mp4"	#相机类型为"mvsua"时该相可忽略；
+  camera_numb: 0  # camera number for left/right camera index
+  camera_matrix {
+    data: 1055.473554952641
+    data: 0.0
+    data: 641.8475747703822
+    data: 0.0
+    data: 1059.457914158714
+    data: 100.6192798830318
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: -0.092400718434772
+    data: 0.093751846692574
+    data: -0.002623992863356
+    data: 0.003383017586966
+    data: 0.0
+  }
+
+  resolution {
+    width: 1280
+    height: 600
+
+
+    width_offset: 0
+    height_offset: 424
+  }
+
+  fps: 100
+  auto_exposure: 1
+  exposure_value: 70
+  exposure_time: 10
+  auto_white_balance: 1
+  auto_gain: 0
+}
+
+# camera: {
+#   camera_name: "left_camera"		    #需要与armor_detection.prototxt中camera_name保持一致
+#   camera_type: "uvc"					      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+#   camera_path: "/dev/videol"			  #相机类型为"mvsua"时该相可忽略；
+#   camera_numb: 6                    # camera number for left/right camera index
+# camera_matrix {
+#     data: 662.933152
+#     data: 0.0
+#     data: 675.596133
+#     data: 0.0
+#     data: 648.427606
+#     data: 397.112174
+#     data: 0.0
+#     data: 0.0
+#     data: 1.0
+#   }
+
+#   camera_distortion {
+#     data: 0.066135
+#     data: -0.045560
+#     data: 0.017665
+#     data: 0.023198
+#     data: 0.0
+#   }
+
+#   resolution {
+#     width: 1280
+#     height: 720
+
+
+#     width_offset: 0
+#     height_offset: 0
+#   }
+
+#   fps: 100
+#   auto_exposure: 0
+#   exposure_value: 110
+#   exposure_time: 30
+#   auto_white_balance: 1
+#   auto_gain: 0
+#   #resize_ratio : 1
+# }
+
+
+# camera: {
+#   camera_name: "right_camera"		    #需要与armor_detection.prototxt中camera_name保持一致
+#   camera_type: "uvc"					      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+#   camera_path: "/dev/videor"			  #相机类型为"mvsua"时该相可忽略；
+#   camera_numb: 5                    # camera number for left/right camera index
+# camera_matrix {
+#     data: 611.679255
+#     data: 0.0
+#     data: 670.426945
+#     data: 0.0
+#     data: 612.926022
+#     data: 297.848101
+#     data: 0.0
+#     data: 0.0
+#     data: 1.0
+#   }
+
+#   camera_distortion {
+#     data: 0.081913
+#     data: -0.057263
+#     data: -0.016232
+#     data: 0.015022
+#     data: 0.0
+#   }
+
+#   resolution {
+#     width: 1280
+#     height: 720
+
+
+#     width_offset: 0
+#     height_offset: 0
+#   }
+
+#   fps: 100
+#   auto_exposure: 0
+#   exposure_value: 125
+#   exposure_time: 30
+#   auto_white_balance: 1
+#   auto_gain: 0
+#   #resize_ratio : 1
+# }

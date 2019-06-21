@@ -1,0 +1,39 @@
+      camera_numb: 1
+
+camera_matrix {
+    data: 866.928940
+    data: 0.0
+    data: 866.928940
+    data: 0.0
+    data: 861.231732
+    data: 445.643365
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: 0.022470
+    data: 0.022470
+    data: 0.004447 
+    data: -0.004158
+    data: 0.0
+  }
+
+
+  resolution {
+    width: 1920
+    height: 1080
+
+
+    width_offset: 0
+    height_offset: 0
+  }
+
+  fps: 100
+  auto_exposure: 0
+  exposure_value: 115
+  exposure_time: 10
+  auto_white_balance: 1
+  auto_gain: 1
+#resize_ratio : 1

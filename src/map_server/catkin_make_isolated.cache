@@ -1,0 +1,2 @@
+RoboRTS/roborts:RoboRTS/roborts_base:RoboRTS/roborts_bringup:RoboRTS/roborts_camera:RoboRTS/roborts_common:RoboRTS/roborts_costmap:RoboRTS/roborts_decision:RoboRTS/roborts_detection:RoboRTS/roborts_localization:RoboRTS/roborts_msgs:RoboRTS/roborts_planning:RoboRTS/roborts_tag/apriltags2:RoboRTS/roborts_tracking:decision:map_server:pi_trees/pi_trees:pi_trees/pi_trees_lib:pi_trees/pi_trees_ros
+-G Unix Makefiles -DCATKIN_DEVEL_PREFIX=/home/nvidia/hitsz_icra_2019/devel_isolated -DCMAKE_INSTALL_PREFIX=/home/nvidia/hitsz_icra_2019/install_isolated

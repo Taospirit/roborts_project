@@ -1,0 +1,5 @@
+uint8 gimbal_mode
+#uint8 patrol = 1
+#uint8 dodge_lock = 2
+---
+bool received

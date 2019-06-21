@@ -1,0 +1,40 @@
+<launch>
+  <!-- Run the Base Node -->
+  <node ns="robot_0" pkg="roborts_base" type="roborts_base_node" name="roborts_base_node" output="screen" respawn="true">
+    <rosparam command="load" file="$(find roborts_base)/config/roborts_base_parameter.yaml" />
+  </node>
+
+  <!--static_transform_publisher x y z yaw pitch roll frame_id child_frame_id-->
+  <node ns="robot_0" pkg="tf2_ros" type="static_transform_publisher" name="base_link_base_laser_link_broadcaster" args="0.15 0.0 0.05 0.0 0.0 0.0 /robot_0/base_link /robot_0/base_laser_link 10"/>
+
+  <!-- Run the lidar node -->
+  <node ns="robot_0" name="rplidar_node" pkg="rplidar_ros" type="rplidarNode" output="screen">
+    <param name="serial_port" type="string" value="/dev/rplidar"/>
+    <param name="serial_baudrate" type="int" value="115200"/>
+    <param name="frame_id" type="string" value="/robot_0/base_laser_link"/>
+    <param name="inverted" type="bool" value="false"/>
+    <param name="angle_compensate" type="bool" value="true"/>
+  </node>
+
+  <!-- Laser filter -->
+  <node ns="robot_0" pkg="laser_filters" type="scan_to_scan_filter_chain" output="screen" name="laser_filter_0">
+    <rosparam command="load" file="$(find laser_filters)/examples/range_filter.yaml" />
+    <remap from="scan_filtered" to="scan_filtered"/>
+  </node>
+
+  <!-- Run the localization node -->
+  <node ns="robot_0" pkg="roborts_localization" type="localization_node" name="localization_node" output="screen" respawn="false">
+    <rosparam command="load" file="$(find roborts_localization)/config/localization.yaml" />
+  </node>
+
+  <!-- Run the global planner Node -->
+  <node ns="robot_0" pkg="roborts_planning" type="global_planner_node" name="global_planner_node" output="screen" respawn="false">
+    <rosparam command="load" file="$(find roborts_planning)/global_planner/config/global_planner.yaml" />
+  </node>
+
+  <!-- Run the local planner node -->
+  <node ns="robot_0" pkg="roborts_planning" type="local_planner_node" name="local_planner_node" output="screen" respawn="false">
+    <rosparam command="load" file="$(find roborts_planning)/local_planner/config/local_planner.yaml" />
+  </node>
+
+</launch>

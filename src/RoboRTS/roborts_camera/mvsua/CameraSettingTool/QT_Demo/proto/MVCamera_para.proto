@@ -1,0 +1,27 @@
+//HITSZ 
+syntax = "proto2";
+package MVCamera;
+message MVSUA133 {
+	required int32  ResolutionIndex		=1; 	//分辨率索引,0为1240*1024； 1为640*480
+	required bool 	AeState			=2;	//自动曝光模式
+	optional int32 	AeTarget		=3;	//自动曝光时目标亮度至
+	optional bool 	AntiFlick		=4;	//是否抑制闪频
+	optional int32 	LightFrequency		=5;	//抑制闪频50HZ 60Hz
+	optional int32	AnalogGain		=6;	//曝光增益
+	optional double	ExposureTime		=7;	//曝光时间
+	optional double ExposureLineTime	=8;	//单行像素曝光时间
+	required int32	Gamma			=9;	//Gamma
+	required int32	Contrast		=10;	//对比度		
+	required int32	RGain			=11;	//红色增益		
+	required int32	GGain			=12;	//绿色增益
+	required int32	BGain			=13;	//蓝色增益		
+	required int32	Saturation		=14;	//饱和度
+	required int32	Shaprpness		=15;	//锐度
+	required bool	Mirror_H		=16;	//水平翻转
+	required bool	Mirror_V		=17;	//竖直翻转
+	optional int32  Width			=18;	//分辨率宽度
+	optional int32  Height			=19;	//分辨率高度
+	optional int32  Speed			=20;	//速度0-2,2为最高速：0->30帧 1->50 2->90
+	optional int32  W_offset		=21;	//水平偏置
+	optional int32	H_offset 		=22;	//垂直偏置
+}

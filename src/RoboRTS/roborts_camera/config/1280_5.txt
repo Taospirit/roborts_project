@@ -1,0 +1,40 @@
+camera_numb: 5                    # camera number for left/right camera index
+camera_matrix {
+    data: 611.679255
+    data: 0.0
+    data: 670.426945
+    data: 0.0
+    data: 612.926022
+    data: 297.848101
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: 0.081913
+    data: -0.057263
+    data: -0.016232
+    data: 0.015022
+    data: 0.0
+  }
+
+  resolution {
+    width: 1280
+    height: 720
+
+
+    width_offset: 0
+    height_offset: 0
+  }
+
+  fps: 100
+  auto_exposure: 0
+  exposure_value: 120
+  exposure_time: 30
+  auto_white_balance: 1
+  auto_gain: 0
+  #resize_ratio : 1
+}
+
+

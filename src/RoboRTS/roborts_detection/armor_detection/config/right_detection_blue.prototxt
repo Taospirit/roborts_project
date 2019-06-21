@@ -1,0 +1,11 @@
+camera_name : "right_camera"
+camera_angle : 120.0
+
+camera_gimbal_transform {
+offset_x :100
+offset_y :50
+offset_z :200
+offset_pitch :0
+offset_yaw :-90    # degree
+}
+enable_thread : true

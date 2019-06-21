@@ -1,0 +1,21 @@
+syntax = "proto2";
+package roborts_detection;
+
+message Camera_Gimbal_Transform {
+	required float offset_x = 1;
+	required float offset_y = 2;
+	required float offset_z = 3;
+	required float offset_pitch = 4;
+	required float offset_yaw = 5;
+}
+
+message Side_Camera{
+	required string camera_name 	= 1;
+	required float  camera_angle 	= 2;
+	required Camera_Gimbal_Transform camera_gimbal_transform = 3;
+	required bool enable_thread 	= 4;
+}
+
+// message Side_Cameras{
+// 	repeated Side_Camera side_camera =1;
+// }

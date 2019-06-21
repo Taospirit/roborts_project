@@ -1,0 +1,900 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import copy
+import math
+import random
+import time
+
+import numpy as np
+import rospkg
+import rospy
+import tf
+from decision.msg import EnemyPos
+from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import Odometry
+import functools
+import py_trees
+import py_trees_ros
+import py_trees.console as console
+from roborts_msgs.msg import (GimbalAngle, GimbalRate, ShootInfo, ShootState,
+                              TwistAccel)
+from tf.transformations import quaternion_from_euler
+
+from battle_env import BattleEnv
+from controller import Controller
+
+
+# TODO reconstrcut the code
+
+class TwistControl():
+    def __init__(self, move_x, move_y, move_z, angular_z):
+        self.Twist = Twist()
+        self.Twist.linear.x = move_x
+        self.Twist.linear.y = move_y
+        self.Twist.linear.z = move_z
+        self.Twist.angular.x = 0
+        self.Twist.angular.y = 0
+        self.Twist.angular.z = angular_z
+
+class BlackBoard():
+    def __init__(self):
+        self.search_state_flag = False
+
+
+        self.sended_close = False
+        self.sended_far = False
+        self.sended_beated = False
+        self.sended_follow = False
+        self.sended_patrol = False
+        self.sended_blocked = False
+        self.follow_flag = 0  # 0:跟随；1：左转；2：右转
+        self.patrol_flag = 0  # 0:第一个点; 1：第二个点； 2：第三个点...
+        self.patrol_flag1 = 0  # 0:先自旋360； 1：开始ptl
+        self.patrol_flag2 = 0  # ptl点
+        self.leftarea = False
+        self.search_state = False
+
+        self.goallastforptl_x = 0
+        self.goallastforptl_y = 0
+
+        self.Blocked = False
+        self.Blocked_Prevent_close = False
+        self.Blocked_Prevent_far = False
+        self.Blocked_Prevent_follow = False
+        self.Blocked_Prevent_patrol = False
+        self.Blocked_excuteflag = 0  # 0:转正；1：推；2：拯救点
+        self.BlockedPoseSaveX = 0
+        self.BlockedPoseSaveY = 0
+        self.BlockedPoseSaveYaw = 0
+        self.Blocked_GoalYaw = 0
+
+        self.get_buff_time = 0  # 到了6s就执行抢符
+        self.get_buff_time_flag = False  # 不要重复计时标志位
+
+        # 定义拯救点数组:5个点
+        self.PreRescuePoint = ((1.35, 2.6, 45), (2.25, 4.5, -45),
+                               (6.65, 2.4, -135), (5.75, 0.5, 135))
+        self.RescuePoint = ((4, 2.5, 0), (4.8, 1.8, 179), (3.2, 3.2, 0))
+        self.avoidloop_far = 0
+        self.avoidloop_follow = 0
+        self.avoidloop_patrol = 0
+
+        self.ForceBuff = False
+
+        self.rotate_at_begining = True
+        self.EnterFollow = False
+        self.enemy_last_x = 0
+        self.enemy_last_y = 0
+        self.enemy_last_yaw = 0
+        self.enemy_last_remaining_time = 180
+
+    
+    def refreshState(self):
+        # env.outDodge()
+        self.EnterFollow = False
+        self.ForceBuff = False
+
+    def getRangeNum(self, val, border_list):
+        if len(border_list) == 1:
+            raise Exception('border list is too short')
+        border_list.sort()
+        for border in border_list: 
+            if val > border:
+                continue
+            return border_list.index(border)
+        return len(border_list)
+
+class BuildTree():
+    def __init__(self):
+        self.blackboard = BlackBoard()
+        rate = rospy.Rate(50)
+        NORMALBEHAVE = py_trees.composites.Selector("NORMALBEHAVE")
+        ROTATE = py_trees.composites.Sequence("ROTATE")
+        SUPPLY = py_trees.composites.Sequence("SUPPLY")
+        BUFF = py_trees.composites.Sequence("GOTOBUFF")
+        SEARCH_REGION = py_trees.composites.Sequence("SEARCH")
+        FOLLOW = py_trees.composites.Sequence("FOLLOW")
+
+        # NORMALBEHAVE.add_child(ROTATE)
+        # NORMALBEHAVE.add_child(SUPPLY)
+        # NORMALBEHAVE.add_child(BUFF)
+        NORMALBEHAVE.add_child(SEARCH_REGION)
+        NORMALBEHAVE.add_child(FOLLOW)
+
+        ISROTATE = IsRotate("ISROTATE", blackboard=self.blackboard)
+        ROTATE_DO = Rotate_Do("ROTATE_DO", blackboard=self.blackboard)
+        ROTATE.add_child(ISROTATE)
+        ROTATE.add_child(ROTATE_DO)
+
+        ISSUPPLY = IsSupply("ISSUPPLY", blackboard=self.blackboard)
+        SUPPLY_DO = Supply_Do("SUPPLY_DO",blackboard=self.blackboard)
+        SUPPLY.add_child(ISSUPPLY)
+        SUPPLY.add_child(SUPPLY_DO)
+        
+        ISGOTOBUFF = IsGOTOBUFF("ISGOTOBUFF", blackboard=self.blackboard)
+        GOTOBUFF = GotoBuff("GOTOBUFF", blackboard=self.blackboard)
+        BUFF.add_child(ISGOTOBUFF)
+        BUFF.add_child(GOTOBUFF)
+
+
+        ISSEARCH = IsSearch("ISSERARCH", blackboard=self.blackboard)
+        SEARCH = Search("SEARCH", blackboard=self.blackboard)
+        SEARCH_REGION.add_child(ISSEARCH)
+        SEARCH_REGION.add_child(SEARCH)
+
+        ISFOLLOW = IsFollow("ISFOLLOW", blackboard=self.blackboard)
+        FOLLOW_SHOOT = Follow_Shoot("FOLLOW_SHOOT", blackboard=self.blackboard)
+        FOLLOW.add_child(ISFOLLOW)
+        FOLLOW.add_child(FOLLOW_SHOOT)
+
+
+        rospy.loginfo("NORMALBEHAVE Tree")
+        py_trees.display.print_ascii_tree(NORMALBEHAVE)
+
+        behaviour_tree = py_trees_ros.trees.BehaviourTree(NORMALBEHAVE)
+        behaviour_tree.add_pre_tick_handler(self.pre_tick_handler)
+
+        behaviour_tree.visitors.append(py_trees.visitors.DebugVisitor())
+
+        snapshot_visitor = py_trees.visitors.SnapshotVisitor()
+        behaviour_tree.add_post_tick_handler(functools.partial(self.post_tick_handler, snapshot_visitor))
+        behaviour_tree.visitors.append(snapshot_visitor)
+
+        behaviour_tree.setup(timeout=15)
+
+        while not rospy.is_shutdown():
+            try:
+                behaviour_tree.tick()
+            except KeyboardInterrupt:
+                break
+            rate.sleep()
+        print("\n")
+
+
+    def pre_tick_handler(self, behaviour_tree):
+        print("\n--------- Run %s ---------\n" % behaviour_tree.count)
+
+
+    def post_tick_handler(self, snapshot_visitor, behaviour_tree):
+        print("\n" + py_trees.display.ascii_tree(behaviour_tree.root,
+                                                snapshot_information=snapshot_visitor))
+
+class IsRotate(py_trees.Behaviour):
+    def __init__(self, name, blackboard = None):
+        super(IsRotate,self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+    
+    def update(self):
+        if self.blackboard.rotate_at_begining:
+            return py_trees.Status.SUCCESS
+        else:
+            return py_trees.Status.FAILURE
+
+class Rotate_Do(py_trees.Behaviour):
+    def __init__(self, name, blackboard = None):
+        super(Rotate_Do,self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+        
+    def update(self):
+        if env.GAME_STATUS != 4:
+            return py_trees.Status.SUCCESS
+        else:
+            rotate_start_time = rospy.Time.now().secs
+            while rospy.Time.now().secs - rotate_start_time < 5:
+                ctrl.send_vel(TwistControl(0, 0, 0, 2).Twist)
+            self.blackboard.rotate_at_begining = False
+            return py_trees.Status.FAILURE
+
+class IsSupply(py_trees.Behaviour):
+    def __init__(self, name, blackboard = None):
+        super(IsSupply,self).__init__(name)
+        rospy.loginfo("issupply ready")
+        self.name = name
+        self.blackboard = blackboard
+
+    def update(self):
+        #rospy.INFO("NEED SUPPLY!!!")
+        if env.supply_needed == True and not self.blackboard.ForceBuff:
+            #rospy.logwarn("Got supply singal")
+            return py_trees.Status.SUCCESS
+        else:
+            return py_trees.Status.FAILURE
+
+class Supply_Do(py_trees.Behaviour):
+    def __init__(self, name, blackboard = None):
+        super(Supply_Do,self).__init__(name)
+        rospy.loginfo("supply ready")
+        self.name = name
+        self.blackboard = blackboard
+        
+    def update(self):
+        rospy.logwarn("got it ")
+        env.ARMOR_HIT_NUM = -1
+        if env.breaksupply:
+            if env.isActionAvaliable(env.breakpoint[0], env.breakpoint[1], env.breakpoint[2]):
+                env.send_goal_force(env.navgoal)
+                env.supply_needed = False
+                env.sendgoalresult = False
+                env.go_point_num = 0
+                env.breaksupply = False
+                env.supplytalker.publish(False)
+                return py_trees.Status.SUCCESS
+        else:
+            if env.go_point_num == 2:
+                result = self.nav_to_default_supply_point()
+                if result:
+                    rospy.logwarn("default supply done")
+                    env.supply_needed = False
+                    env.sendgoalresult = False
+                    env.go_point_num = 0
+                    return py_trees.Status.SUCCESS
+                else:
+                    if env.breaksupply:
+                        return py_trees.Status.SUCCESS
+                    else:
+                        rospy.logwarn("default supply fail")
+                        env.supply_needed = False
+                        env.sendgoalresult = False
+                        env.go_point_num = 0
+                        env.supplytalker.publish(False)
+                        return py_trees.Status.SUCCESS
+            else:
+                while env.supply_needed :
+                    supplypoint = env.supplypoint_list[env.go_point_num]
+                    rospy.logwarn(supplypoint)
+                    
+                    if env.isActionAvaliable(supplypoint[0], supplypoint[1], supplypoint[2]):
+                        env.send_goal_force(env.navgoal)
+                        goal_start = time.time()
+
+                        if env.sendgoalresult:
+                            env.tag_info = {'tag_detected': False, 'x': 0, 'z': 0, 'pitch': 0, 'distance': 0 }
+                            rospy.loginfo("got the supply area!")
+                            find_start = time.time()
+
+                            while env.tag_info['tag_detected'] == False:
+                                if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30: 
+                                    env.breaksupply = True
+                                    return py_trees.Status.SUCCESS
+                                else:
+                                    rotate_end = time.time()
+                                    if rotate_end - find_start < 2:
+                                        ctrl.send_vel(cmdvel_slowyoutwist)
+                                    elif rotate_end - find_start >= 2 and rotate_end - find_start < 6:
+                                        ctrl.send_vel(cmdvel_slowzuotwist)
+                                    else:
+                                        if env.go_point_num == 0:
+                                            env.go_point_num = 1
+                                            rospy.logwarn("tag not found!!!!!!! go to the next point")
+                                            return py_trees.Status.SUCCESS
+                                        else:
+                                            env.go_point_num = 2
+                                            return py_trees.Status.SUCCESS
+
+                            find_start = time.time()
+                            while abs(env.tag_info['pitch']) > 2:
+                                rotate_end = time.time()
+                                if rotate_end - find_start < 3:
+                                    if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30: 
+                                        env.breaksupply = True
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        if env.tag_info['pitch'] > 0:
+                                            ctrl.send_vel(cmdvel_slowyoutwist)
+                                        elif env.tag_info['pitch'] < 0:
+                                            ctrl.send_vel(cmdvel_slowzuotwist)
+                                        rospy.logwarn("angle: ")
+                                        rospy.loginfo(env.tag_info['pitch'])
+                                else:
+                                    if env.go_point_num == 0:
+                                        env.go_point_num = 1
+                                        rospy.logwarn("tag angle not appropriate!!!!!!! go to the next point")
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        env.go_point_num = 2
+                                        return py_trees.Status.SUCCESS
+
+                            find_start = time.time()            
+                            while abs(env.tag_info['x']) > 0.1:
+                                move_end = time.time()
+                                if move_end - find_start < 2:
+                                    if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30: 
+                                        env.breaksupply = True
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        ctrl.send_vel(TwistControl(0, 0.5*(env.tag_info['x']/abs(env.tag_info['x'])), 0, 0).Twist)
+                                        rospy.logwarn("zuoyou distance: ")
+                                        rospy.loginfo(env.tag_info['x'])
+                                else:
+                                    if env.go_point_num == 0:
+                                        env.go_point_num = 1
+                                        rospy.logwarn("tag x move wrong!!!!!!! go to the next point")
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        env.go_point_num = 2
+                                        return py_trees.Status.SUCCESS
+
+                            find_start = time.time()  
+                            while env.tag_info['z'] > 0.6:
+                                move_end = time.time()
+                                if move_end - find_start < 3:
+                                    if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30:
+                                        env.breaksupply = True
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        ctrl.send_vel(TwistControl(-0.6, 0, 0, 0).Twist)
+                                        rospy.logwarn("moving!!!")
+                                        rospy.loginfo(env.tag_info['z'])
+                                else:
+                                    if env.go_point_num == 0:
+                                        env.go_point_num = 1
+                                        rospy.logwarn("tag z move wrong!!!!!!! go to the next point")
+                                        return py_trees.Status.SUCCESS
+                                    else:
+                                        env.go_point_num = 2
+                                        return py_trees.Status.SUCCESS
+
+                            rospy.logwarn("reached supply area")
+                            rospy.loginfo("************supplying**************")
+                            env.supplytalker.publish(True)
+                            supply_start = time.time()
+                            while(True):
+                                supply_end = time.time()
+                                if supply_end - supply_start < 4:
+                                    if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30: 
+                                        env.breaksupply = True
+                                        return py_trees.Status.SUCCESS 
+                                    else:
+                                        pass
+                                else:
+                                    rospy.logwarn("supplying done")
+                                    env.supply_needed = False
+                                    env.sendgoalresult = False
+                                    self.go_point_num = 0
+                                    return py_trees.Status.SUCCESS
+                        
+                        else:
+                            goal_end = time.time()
+                            if goal_end - goal_start > 10 :
+                                if env.go_point_num == 0:
+                                    env.go_point_num = 1
+                                    return  py_trees.Status.SUCCESS
+                                else :
+                                    env.go_point_num = 2
+                                    return py_trees.Status.SUCCESS
+                            else:
+                                pass
+                    else:
+                        if env.go_point_num == 0:
+                            env.go_point_num = 1
+                            rospy.logwarn("tag not found!!!!!!! go to the next point")
+                            return py_trees.Status.SUCCESS
+                        else:
+                            env.go_point_num = 2
+                            return py_trees.Status.SUCCESS
+
+    
+    def nav_to_default_supply_point(self):
+        supplypoint = env.supplypoint_default
+        if env.isActionAvaliable(supplypoint[0], supplypoint[1], supplypoint[2]):
+            env.send_goal_force(env.navgoal)
+            go_default_start = time.time()
+            if env.sendgoalresult:
+                rospy.logwarn("reached default supply area")
+                rospy.loginfo("************supplying**************")
+                env.supplytalker.publish(True)
+                while(True):
+                    supply_end = time.time()
+                    if supply_end - go_default_start < 4:
+                        if env.ARMOR_HIT_NUM != -1 and env.REMAIN_HP < 30: 
+                            env.breaksupply = True
+                            return False
+                        else:
+                            pass
+                    else:
+                        return True
+            else:
+                go_default_end = time.time()
+                if go_default_end - go_default_start > 7:
+                    rospy.logwarn("!!!!!!!the area is not reachable!!!!!!!!!!!!supply failed!!!!!!!!!!!")
+                    return False
+                else:
+                    pass
+        else:
+            rospy.logwarn('Action is not avaliable!!!!!!!')
+            return False
+        
+class IsGOTOBUFF(py_trees.Behaviour):
+    def  __init__(self, name, blackboard=None):
+        super(IsGOTOBUFF, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+    def update(self):
+        # if abs(int(env.ROBOT_ID)-3) < 2:  #己方红
+        if env.SELF_BONUS_STATUS != 2 and env.num_detected_enemy < env.BUFF_detect_num and env.ROBOT_BONUS == 0: 
+            return py_trees.Status.SUCCESS
+        else:
+            return py_trees.Status.FAILURE
+        # elif abs(int(env.ROBOT_ID)-13) < 2: #己方蓝
+        #     if env.BLUE_BONUS_STATUS==0 and not env.num_detected_enemy>30 and env.ROBOT_BONUS==0 and (env.ammo_num >=16 or env.REMAIN_HP >=1000): 
+        #         return py_trees.Status.SUCCESS
+        #     else:
+        #         return py_trees.Status.FAILURE
+        # return py_trees.Status.FAILURE
+
+class GotoBuff(py_trees.Behaviour):
+    def __init__(self, name, blackboard=None):
+        super(GotoBuff, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+        self.start_buff =0
+        self.buff_point = [6.3, 1.75, 150]
+        self.remain_time = 7
+
+    def update(self):
+        print ('************************ENTER_GotoBuff**************************')
+        if not self.blackboard.ForceBuff:
+            env.outDodge()
+            self.blackboard.EnterFollow = False
+            self.blackboard.ForceBuff = False
+    
+        if env.SELF_BONUS_STATUS == 0:
+            rospy.loginfo("BUFF---{}---going to BUFF!!!!".format(env.COLOR))
+            if not (self.isInRange(env.robot_pose['x'], 6.1, 6.5) and self.isInRange(env.robot_pose['y'], 1.25, 1.95)):
+                if env.isActionAvaliable(self.buff_point[0], self.buff_point[1], self.buff_point[2]):
+                    if env.ammo_num <= 16:
+                        env.send_goal_force(env.navgoal) # 弹量少时force_send_goal
+                    else: # 弹药充足
+                        env.BUFF_cancle_flag = 0
+                        env.send_goal_buff(env.navgoal)
+
+                        if env.BUFF_cancle_flag == 1:
+                            rospy.loginfo('BUFF---{}---BUFF is getting by other robot, cancle goal!'.format(env.COLOR))
+                            return py_trees.Status.FAILURE
+
+                        if env.BUFF_cancle_flag == 2:
+                            rospy.loginfo('BUFF---{}---detect enemy during goto BUFF, cancle goal!'.format(env.COLOR))
+                            return py_trees.Status.FAILURE
+
+                    self.start_buff = rospy.Time.now().secs
+                    self.blackboard.ForceBuff = True
+                    env.enterDodge()
+                    return py_trees.Status.SUCCESS
+            else: # robot have be in BUFF area but BONUS_STATUS is still 0
+                stay_time = rospy.Time.now().secs - self.start_buff
+                if stay_time < self.remain_time + 2:
+                    print ('Buff status is {}, but robot in self buff area aleady! wait for {}'.format(env.SELF_BONUS_STATUS, stay_time))
+                    return py_trees.Status.SUCCESS
+                # else:
+                #     rospy.logwarn('BUFF--------time out')
+                #     return py_trees.Status.FAILURE
+
+        elif env.SELF_BONUS_STATUS == 1:
+            if self.isInRange(env.robot_pose['x'], 5.8, 6.8) and self.isInRange(env.robot_pose['y'], 1.25, 2.3):
+                stay_time = rospy.Time.now().secs - self.start_buff
+                if stay_time < self.remain_time:
+                    print ('The buff is {}, robot is getting buff! wait for {}'.format(env.SELF_BONUS_STATUS, stay_time))
+                    return py_trees.Status.SUCCESS
+            else:
+                rospy.loginfo('The buff is {}, somebody is getting buff, OUT!'.format(env.SELF_BONUS_STATUS))
+                return py_trees.Status.FAILURE
+
+        rospy.logwarn('BUFF--------time out')
+        env.outDodge()
+        self.blackboard.ForceBuff = False
+        return py_trees.Status.FAILURE
+                        
+    def isInRange(self, val, val1, val2):
+        if val < val1:
+            return False
+        elif val > val2:
+            return False
+        return True
+
+
+class IsSearch(py_trees.Behaviour):
+    def __init__(self, name, blackboard=None):
+        super(IsSearch, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+
+r    def update(self):
+        if not self.blackboard.EnterFollow:
+            if not env.detection_result:
+                return py_trees.Status.SUCCESS
+            if env.detection_result and env.enemy_pose.enemy_dist > env.SEARCH_stop_dist:
+                return py_trees.Status.SUCCESS
+            else:
+		print ('---------enemy is close! enter follow!')
+                return py_trees.Status.FAILURE
+        else:
+	    print ('------enter_follow is true, enter follow!----------')
+            return py_trees.Status.FAILURE
+
+class Search(py_trees.Behaviour):
+    def __init__(self, name, blackboard=None):
+        super(Search, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+        self.closed_list = []
+        self.search_enemy = False
+        self.rotation_theta_threshold = 30
+        self.enemy_buff_point = [1.7, 3.25] # enemy buff center in map
+        # self.search_order = [0, 1, 2, 3]
+
+    def update(self):
+        print('-----------------Robot BUFF is {}, MAP BUFF is {}----------------'.format(env.ROBOT_BONUS, env.SELF_BONUS_STATUS))
+        rospy.loginfo('********************ENTER SEARCH*******************') 
+        # self.blackboard.refreshState()
+        # ctrl.chassis_mode_switch(1)
+        # ctrl.gimbal_mode_switch(2)
+        # env.chassis_mode = 1
+        # env.gimbal_mode = 2
+        env.outDodge()
+        self.blackboard.EnterFollow = False
+        self.blackboard.ForceBuff = False
+        print ('____________refresh state____________')
+        
+        location_num = self.getLocationNum()
+        if len(self.closed_list) >= len(env.search_regions[location_num]):
+            location_num += 1
+            location_num %= len(env.search_regions)
+            rospy.logwarn("region {} is clear, going to region {}".format(location_num-1, location_num))
+            self.closed_list = []
+
+        goal_x, goal_y, goal_theta = self.getPointToGo(env.search_regions[location_num])
+
+        if not env.isActionAvaliable(goal_x, goal_y, goal_theta):
+            rospy.logwarn("cannot goto point {}, {} with {}".format(goal_x, goal_y, goal_theta))
+            self.closed_list.append([goal_x, goal_y, goal_theta])
+        else:
+            if self.search_enemy:
+                if abs(goal_theta - env.robot_pose['theta']) > self.rotation_theta_threshold:
+                    rospy.logwarn('Rotation for point to enemy')
+                    env.TwitsRotation(goal_theta)
+                rospy.logwarn('Goto enemy point {}, {} with {}'.format(goal_x, goal_y, goal_theta))
+            else:
+                rospy.loginfo('Goto search point {}, {} with {}'.format(goal_x, goal_y, goal_theta))
+
+            env.SEARCH_cancel_flag = 0
+            env.send_goal_in_search(env.navgoal)
+
+            while env.SEARCH_cancel_flag == 1 and env.is_blocked:
+                env.getEscaspeDirection()
+                rospy.logwarn('try to escaspe!')
+                ctrl.send_vel(TwistControl(env.escape_v_x, env.escape_v_y, 0, 0).Twist)
+
+            self.blackboard.enemy_last_x, self.blackboard.enemy_last_y = 0, 0
+            if env.SEARCH_cancel_flag == 2: # supply needed out
+                return py_trees.Status.SUCCESS
+
+            if env.SEARCH_cancel_flag == 3: # close out
+                self.blackboard.EnterFollow = True
+                return py_trees.Status.FAILURE
+
+            if env.SEARCH_cancel_flag == 4: # detect and refresh enemy position
+                return py_trees.Status.SUCCESS
+
+            if env.SEARCH_cancel_flag == 5: # not detect and hit rotation
+                env.getEnemyDirection()
+                env.TwitsRotation(env.twist_goal_theta)
+                env.ARMOR_HIT_NUM = -1
+                return py_trees.Status.SUCCESS
+
+            if env.SEARCH_cancel_flag == 6: # find enemy in buff and rotation to point to
+                point_theta = math.degrees(math.atan2(self.enemy_buff_point[1] - env.robot_pose['y'], self.enemy_buff_point[0] - env.robot_pose['x']))
+                env.TwitsRotation(point_theta)
+                return py_trees.Status.SUCCESS
+
+            if env.SEARCH_cancel_flag == 7: # search points smoothly
+                if self.search_enemy:
+                    self.closed_list[:] = []
+                else:
+                    self.closed_list.append([goal_x, goal_y, goal_theta])
+                return py_trees.Status.SUCCESS
+        return py_trees.Status.SUCCESS
+
+    def getLocationNum(self): # get region number robot in
+        if env.robot_pose['y'] < 2.5:
+            if env.robot_pose['x'] < 3.5:
+                return 0
+            else:
+                return 3
+        elif env.robot_pose['x'] < 4.5:
+            return 1
+        else:
+            return 2
+
+    def getPointToGo(self, open_list):
+        # detecte event
+        self.search_enemy = False
+        if env.detection_result:
+            self.search_enemy = True
+            point_theta = math.degrees(math.atan2(env.enemy_position['y'] - env.robot_pose['y'], env.enemy_position['x'] - env.robot_pose['x']))
+            return env.enemy_position['x'], env.enemy_position['y'], point_theta
+        # follow last pose
+        if self.blackboard.enemy_last_x != 0 or self.blackboard.enemy_last_y != 0:
+            point_theta = math.degrees(math.atan2(self.blackboard.enemy_last_y - env.robot_pose['y'], self.blackboard.enemy_last_x - env.robot_pose['x']))
+            return self.blackboard.enemy_last_x, self.blackboard.enemy_last_y, point_theta
+        # special event
+        if env.ENEMY_BONUS_STATUS == 1: # have rotation point to buff center point, but cannot detect any enemy
+            pass
+
+        # choose search point
+        for p in open_list:
+            if p in self.closed_list: 
+                continue
+            else:
+                return p[0], p[1], p[2] # return x, y, theta
+        # TODO: more effective way to search when lose enemy in a region 
+
+
+class IsFollow(py_trees.Behaviour):
+    def __init__(self, name, blackboard=None):
+        super(IsFollow, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+
+    def update(self):
+        if env.supply_needed == False and self.blackboard.EnterFollow == True:
+            #rospy.loginfo('FALLOW: {}'.format(env.enemy_pose.enemy_dist))
+            return py_trees.Status.SUCCESS
+        else:
+            return py_trees.Status.FAILURE
+
+
+class Follow_Shoot(py_trees.Behaviour):
+    def __init__(self, name, blackboard=None):
+        super(Follow_Shoot, self).__init__(name)
+        self.name = name
+        self.blackboard = blackboard
+        self.goal_x = 0.01
+        self.goal_y = 0.01
+        self.goal_yaw = 0
+        self.yaw = 0
+        self.keep_length = 0
+        self.time1 = 0
+        self.change_angle_list = [0, 0, 5, -5, 10, -10, -17, 17, 24, -24, 32, -32, 40, -40, 50, -50, 60, -60]
+        self.no_big_change = False
+        self.first_enter_stable = True
+
+    def update(self):
+        #rospy.logwarn('enter follow_shoot')
+        if env.detection_result == False:
+            ctrl.send_vel(TwistControl(0, 0, 0, 0).Twist)
+            self.blackboard.EnterFollow = False
+            return py_trees.Status.FAILURE
+            
+        if self.enemy_big_change() == False and env.enemy_pose.enemy_dist < 1.5:  
+            self.no_big_change = True
+            if self.first_enter_stable == False:
+                if env.beated_num_two_secs > 4:
+                    env.enterDodge()
+                else:
+                    env.enterTracking()
+                    if env.ARMOR_HIT_NUM != -1:
+                        env.ARMOR_HIT_NUM = -1
+                        if self.normalizeDegree(env.enemy_yaw_chassis) > 0:
+                            self.goal_yaw = math.radians(env.robot_pose['theta']) + math.radians(35)
+                        else:
+                            self.goal_yaw = math.radians(env.robot_pose['theta']) - math.radians(35)
+                    elif self.need_change_angle(20, 40) == True: # not hit & need ratate 
+                        if self.normalizeDegree(env.enemy_yaw_chassis) > 0: # enemy at left
+                            self.goal_yaw = env.enemy_pose.enemy_yaw - math.radians(35)
+                        else:                                               # enemy at right
+                            self.goal_yaw = env.enemy_pose.enemy_yaw + math.radians(35)
+                    if env.isActionAvaliable(env.robot_pose['x'], env.robot_pose['y'], 
+                                        self.normalizeDegree(self.goal_yaw)):
+                        env.TwitsRotation(math.degrees(self.goal_yaw))
+                return py_trees.Status.SUCCESS
+            else:
+                self.first_enter_stable = False
+        else:
+            self.first_enter_stable = True
+            self.no_big_change = False
+        
+        env.enterTracking()
+        self.blackboard.enemy_last_x = env.enemy_position['x']
+        self.blackboard.enemy_last_y = env.enemy_position['y']
+        self.blackboard.enemy_last_yaw = env.enemy_pose.enemy_yaw
+        self.blackboard.enemy_last_remaining_time = env.REMAINING_TIME
+
+        if self.follow_goal(env.enemy_pose.enemy_dist, env.enemy_pose.enemy_yaw, env.enemy_position['x'], 
+            env.enemy_position['y'], env.robot_pose['x'], env.robot_pose['y']) == False:
+            if self.rescue_follow_goal(env.enemy_position['x'], env.enemy_position['y'], env.enemy_pose.enemy_yaw, 
+                    env.robot_pose['x'], env.robot_pose['y']) == False:
+                self.blackboard.EnterFollow = False
+                return py_trees.Status.FAILURE # 无法跟随 
+
+        if env.isActionAvaliable(self.goal_x, self.goal_y,
+                                        self.normalizeDegree(self.goal_yaw)):  # 判断目标点是否可行
+            env.enemy_follow_x = env.enemy_position['x']
+            env.enemy_follow_y = env.enemy_position['y']
+            env.send_goal_in_follow(env.navgoal)
+            rospy.loginfo('r0: is follow !!!!!!!     %s,%s,%s' %
+                                (self.goal_x, self.goal_y, self.normalizeDegree(self.goal_yaw)))
+        if env.FOLLOW_cancel_flag == 1:
+            self.blackboard.EnterFollow = False
+            return py_trees.Status.FAILURE
+        return py_trees.Status.SUCCESS
+
+    def need_change_angle(self, angle_min, angle_max): # degrees
+        angle = abs(math.degrees(env.enemy_pose.enemy_yaw) - env.robot_pose['theta'])
+        if angle < angle_max and angle > angle_min:
+            return False
+        else:
+            return True
+
+    def follow_goal(self, enemy_dist, enemy_yaw, enemy_x, enemy_y, robot_x, robot_y):
+        rospy.logerr("---------follow_goal---------")
+        self.count = 0
+        self.change_angle = 0
+        self.goal_x = 0.01
+        self.goal_y = 0.01
+        self.goal_yaw = 0
+
+        if self.no_big_change == True:
+            self.keep_length = 0.7 
+        elif self.close_obstacle(enemy_x, enemy_x, robot_x, robot_y, 0.3) == True:
+            self.keep_length = 0.4
+        elif enemy_dist > 0 and enemy_dist < 2.6:
+            self.keep_length = 0.7 # 跟随距离
+
+        while env.isActionAvaliable(self.goal_x, self.goal_y, self.normalizeDegree(self.goal_yaw)) == False:
+            self.count += 1
+            if self.count > (len(self.change_angle_list) - 1):
+                rospy.logwarn('!!!!!!  cant follow  !!!!!!!')
+                return False     # 无法跟随         
+            self.change_angle = math.radians(self.change_angle_list[self.count]) # 旋转角度 radian
+                    
+            rospy.loginfo("%s" % math.degrees(self.change_angle))
+            self.yaw = enemy_yaw + self.change_angle - math.pi
+            self.goal_x = self.keep_length * math.cos(self.yaw) + enemy_x
+            self.goal_y = self.keep_length * math.sin(self.yaw) + enemy_y
+            self.goal_yaw = self.yaw - math.pi
+
+            if env.isReachable(enemy_x, enemy_y, self.goal_x, self.goal_y) == False or self.obstacle_dis(robot_x, robot_y,
+                 0.2) == False:
+                self.goal_x = 0.01
+                self.goal_y = 0.01
+        return True
+    
+    def rescue_follow_goal(self, enemy_x, enemy_y, enemy_yaw, robot_x, robot_y):
+        if enemy_yaw >= math.pi/2:
+            self.goal_x = robot_x
+            self.goal_y = enemy_y
+            self.goal_yaw = math.radians(178)
+            if env.isReachable(self.goal_x, self.goal_y, robot_x, robot_y) == False:
+                self.goal_x = enemy_x
+                self.goal_y = robot_y
+                self.goal_yaw = math.radians(90)
+        elif enemy_yaw >= 0:
+            self.goal_x = robot_x
+            self.goal_y = enemy_y
+            self.goal_yaw = 0.01
+            if env.isReachable(self.goal_x, self.goal_y, robot_x, robot_y) == False:
+                self.goal_x = enemy_x
+                self.goal_y = robot_y
+                self.goal_yaw = math.radians(90)
+        elif enemy_yaw >= -math.pi/2:
+            self.goal_x = robot_x
+            self.goal_y = enemy_y
+            self.goal_yaw = 0.01
+            if env.isReachable(self.goal_x, self.goal_y, robot_x, robot_y) == False:
+                self.goal_x = enemy_x
+                self.goal_y = robot_y
+                self.goal_yaw = math.radians(-90)         
+        else:
+            self.goal_x = robot_x
+            self.goal_y = enemy_y
+            self.goal_yaw = math.radians(178)
+            if env.isReachable(self.goal_x, self.goal_y, robot_x, robot_y) == False:
+                self.goal_x = enemy_x
+                self.goal_y = robot_y
+                self.goal_yaw = math.radians(-90)
+        if env.isActionAvaliable(self.goal_x, self.goal_y, self.normalizeDegree(self.goal_yaw)) == False:
+            return False
+        else:
+            return True
+
+    def normalizeDegree(self, theta): # 将角度radian归一化为[-180, 180]
+        return math.degrees(math.atan2(math.sin(theta), math.cos(theta)))
+
+    def enemy_big_change(self):
+        if np.square(self.blackboard.enemy_last_x - env.enemy_position['x']) + np.square(self.blackboard.enemy_last_y - env.enemy_position['y']) < 0.02:
+            return False
+        if abs(math.degrees(env.enemy_pose.enemy_yaw) - env.robot_pose['theta']) < 40:
+            return False
+        return True
+
+    def obstacle_dis(self, robot_x, robot_y, dis_set):
+        dis_min = 10
+        for i in env.obstacle_conner:
+            dis = math.hypot(robot_x - i[0], robot_y - i[1])
+            if dis < dis_min:
+                dis_min = dis
+        if dis_min < dis_set:
+            return False
+        else:
+            return True
+    
+    def close_obstacle(self, enemy_x, enemy_y, robot_x, robot_y, dis_set):
+        dis_min = 10
+        for i in env.obstacle_conner:
+            if self.judge(i[0], i[1], enemy_x, enemy_y, robot_x, robot_y):
+                dis = self.dis_point_to_line(i[0], i[1], enemy_x, enemy_y, robot_x, robot_y)
+                if dis_min > dis:
+                    dis_min = dis
+        if dis_min < dis_set:
+            return True
+        else:
+            return False
+    
+    def dis_point_to_line(self, pointX, pointY, lineX1, lineY1, lineX2, lineY2): # 一般式
+        a = lineY2 - lineY1
+        b = lineX1 - lineX2
+        c = lineX2 * lineY1 - lineX1 * lineY2
+        dis = (math.fabs(a*pointX+b*pointY+c)) / (math.pow(a*a+b*b,0.5))
+        return dis
+    
+    def judge(self, pointX, pointY, pointX1, pointY1, pointX2, pointY2):
+        if (pointX >= pointX1 and pointX <= pointX2) or (pointX <= pointX1 and pointX >= pointX2):
+            if (pointY >= pointY1 and pointY <= pointY2) or (pointY <= pointY1 and pointY >= pointY2):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+if __name__ == '__main__':
+    rospy.loginfo('init')
+    rospy.init_node('decision_node')
+    ctrl = Controller()
+    env = BattleEnv()
+    tflistener = tf.TransformListener()
+
+    ctrl.chassis_mode_switch(0)
+    ctrl.gimbal_mode_switch(1)
+
+    ctrl.cmd_fric_wheel_client(True)
+    ctrl.global_path_planner_action_client.wait_for_server(rospy.Duration(0.5))
+    ctrl.local_path_planner_action_client.wait_for_server(rospy.Duration(0.5))
+
+    cmdvel_slowfront = TwistControl(0.205, 0, 0, 0).Twist # 慢速向前命令
+    cmdvel_slowback = TwistControl(-0.205, 0, 0, 0).Twist # 慢速向后命令
+    cmdvel_slowzuotwist = TwistControl(0, 0, 0, 0.4).Twist # 慢速正转
+    cmdvel_slowyoutwist = TwistControl(0, 0, 0, -0.4).Twist # 慢速反转
+    cmdvel_middlefront = TwistControl(0.6, 0, 0, 0).Twist # 中速向前命令
+    cmdvel_middleback = TwistControl(-0.5, 0, 0, 0).Twist # 中速向后命令
+    cmdvel_fastfront = TwistControl(3.5, 0, 0, 0).Twist # 最快速向前命令
+    cmdvel_fastleft = TwistControl(0, 3.5, 0, 0).Twist # 最快速向左命令
+    cmdvel_stop = TwistControl(0, 0, 0, 0).Twist # 定义静止命令
+
+    rospy.loginfo('Start the ICRA_RM!!!!!!')
+    
+    rospy.loginfo('Enter the tree')
+    tree = BuildTree()  # 已经加buff进入tree        
+    rospy.spin()

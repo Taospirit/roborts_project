@@ -1,0 +1,128 @@
+camera: {
+  camera_name: "front_camera"		#需要与armor_detection.prototxt中camera_name保持一致
+  camera_type: "mvsua"				      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+  camera_path: "/home/w/Desktop/icra_vision_test/test_video/test.mp4"	#相机类型为"mvsua"时该相可忽略；
+  camera_numb: 0  # camera number for left/right camera index
+    camera_matrix {
+    data: 1018.833142
+    data: 0.0
+    data: 648.463913
+    data: 0.0
+    data: 1016.798337
+    data: 92.538432
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: -0.110826
+    data: 0.113221
+    data: -0.001360
+    data: -0.002819
+    data: 0.0
+  }
+
+  resolution {
+    width: 1280
+    height: 600
+
+
+    width_offset: 0
+    height_offset: 424
+  }
+
+  fps: 100
+  auto_exposure: 1
+  exposure_value: 70
+  exposure_time: 10
+  auto_white_balance: 1
+  auto_gain: 0
+}
+
+camera: {
+  camera_name: "left_camera"		    #需要与armor_detection.prototxt中camera_name保持一致
+  camera_type: "uvc"					      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+  camera_path: "/dev/videol"			  #相机类型为"mvsua"时该相可忽略；
+camera_numb: 4                    # camera number for left/right camera index
+camera_matrix {
+    data: 617.573348
+    data: 0.0
+    data: 614.713881
+    data: 0.0
+    data: 616.286144
+    data: 291.739667
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: 0.025244
+    data: -0.021722
+    data: -0.000543
+    data: -0.006481
+    data: 0.0
+  }
+
+  resolution {
+    width: 1280
+    height: 720
+
+
+    width_offset: 0
+    height_offset: 0
+  }
+
+  fps: 100
+  auto_exposure: 0
+  exposure_value: 120
+  exposure_time: 30
+  auto_white_balance: 1
+  auto_gain: 0
+  #resize_ratio : 1
+}
+
+
+camera: {
+  camera_name: "right_camera"		    #需要与armor_detection.prototxt中camera_name保持一致
+  camera_type: "uvc"					      #"mvsua"新相机 "uvc"官方默认相机驱动 “video_reader”视频读取 
+  camera_path: "/dev/videor"			  #相机类型为"mvsua"时该相可忽略；
+  camera_numb: 3                    # camera number for left/right camera index
+camera_matrix {
+    data: 605.729080
+    data: 0.0
+    data: 645.524347
+    data: 0.0
+    data: 605.758217
+    data: 269.102566
+    data: 0.0
+    data: 0.0
+    data: 1.0
+  }
+
+  camera_distortion {
+    data: 0.034235
+    data: -0.024343
+    data: -0.009826
+    data: 0.008356
+    data: 0.0
+  }
+
+  resolution {
+    width: 1280
+    height: 720
+
+
+    width_offset: 0
+    height_offset: 0
+  }
+
+  fps: 100
+  auto_exposure: 0
+  exposure_value: 110
+  exposure_time: 30
+  auto_white_balance: 1
+  auto_gain: 0
+  #resize_ratio : 1
+}

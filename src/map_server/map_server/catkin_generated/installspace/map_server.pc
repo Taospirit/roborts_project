@@ -1,0 +1,8 @@
+prefix=/home/nvidia/hitsz_icra_2019/install_isolated
+
+Name: map_server
+Description: Description of map_server
+Version: 1.16.2
+Cflags: -I/home/nvidia/hitsz_icra_2019/install_isolated/include
+Libs: -L/home/nvidia/hitsz_icra_2019/install_isolated/lib -lmap_server_image_loader
+Requires: roscpp nav_msgs tf2

@@ -1,0 +1,20 @@
+ResolutionIndex: 0
+AeState: false
+AnalogGain: 100
+ExposureTime: 2649.705882
+ExposureLineTime: 3.895780086517334
+Gamma: 100
+Contrast: 100
+RGain: 100
+GGain: 110
+BGain: 110
+Saturation: 100
+Shaprpness: 0
+Mirror_H: false
+Mirror_V: false
+Width:1280
+Height:600
+Speed:2
+W_offset:0
+H_offset:424
+Resize_Ratio:0.5

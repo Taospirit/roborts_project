@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/nvidia/hitsz_icra_2019/install_isolated/setup.sh

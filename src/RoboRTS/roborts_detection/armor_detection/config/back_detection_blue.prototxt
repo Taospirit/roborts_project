@@ -1,0 +1,12 @@
+camera_name  : "back_camera"
+camera_angle : 150.0
+
+camera_gimbal_transform {
+offset_x :0
+offset_y :200
+offset_z :100
+offset_pitch :0
+offset_yaw :180   # degree
+}
+enable_thread : true
+

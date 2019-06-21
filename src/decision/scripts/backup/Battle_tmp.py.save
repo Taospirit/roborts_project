@@ -1,0 +1,773 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import time
+import math
+from random import uniform
+import numpy as np
+from PIL import Image
+import rospy
+import tf
+import actionlib
+from std_msgs.msg import Bool
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from tf import TransformListener
+from geometry_msgs.msg import PoseStamped, Quaternion, PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
+from controller import Controller
+from geometry_msgs.msg import Twist, PoseStamped
+from roborts_msgs.msg import GlobalPlannerGoal
+from roborts_msgs.msg import ArmorDetectionAction, ArmorDetectionGoal, ArmorDetection
+from roborts_msgs.msg import GlobalPlannerAction, LocalPlannerAction, LocalPlannerGoal, GlobalPlannerFeedback
+from roborts_msgs.msg import GimbalAngle, GimbalRate, ShootInfo, ShootState, TwistAccel
+from roborts_msgs.srv import ShootCmd, GimbalMode, FricWhl
+from roborts_msgs.msg import BonusStatus, GameResult, GameStatus, GameSurvivor, ProjectileSupply, RobotBonus, RobotDamage
+from roborts_msgs.msg import RobotHeat, RobotShoot, RobotStatus, SupplierStatus, HeatControl
+from decision.msg import EnemyPos
+#
+from decision.msg import BulletAmount
+from apriltags2_ros.msg import AprilTagDetectionArray
+# added by JK
+
+class BattleEnv():
+    #region-------BASE_INIT--------#
+    def __init__(self):    
+        self.map = np.array(
+            Image.open("{}/icra2019_s.pgm".format(
+                os.path.split(os.path.realpath(__file__))[0])))
+
+        self.controller = Controller()
+        self.navgoal = GlobalPlannerGoal()
+        self.navgoal.goal.header.frame_id = 'map'
+        self.gimbal_angle = GimbalAngle()
+        self.gimbal_rate = GimbalRate()
+        self.shoot_info = ShootInfo()
+        self.shoot_state = ShootState()
+        self.twist_accel = TwistAccel()
+        self.armor_detection_result = ArmorDetection()
+        self.tf_pose = PoseStamped()
+        self.global_tf_pose = PoseStamped()
+        self.tf_tansformer = TransformListener()
+        self.quatarnion = Quaternion()
+        self.enemy_pose_robot_frame = EnemyPos()
+        self.enemy_pose = EnemyPos()
+	self.shoot_cmd = ShootCmd()
+        
+        self.ammo_num = 40 # 弹量
+        self.ammo_available_num = 1
+        # self.not_detected_enemy = 0
+        # self.num_no_enemy = 0
+        # self.enemy_historical_position = []
+        self.num_detected_enemy = 0
+        self.num_not_detected_enemy = 0
+        self.point_to_enemy_radian = 0
+        self.STOP_DIST = 1.5
+
+        self.enemyblock_num = 0
+        self.enemyblock_attacknum = [[2.3, 3.2, -45], [2.3, 3.2, 45], [1, 3.15, -90]]
+        self.enemyblock_num_robot1 = 0
+        self.enemyblock_attacknum_robot1 = [[5.7, 1.8, 145], [5.7, 1.8, -145], [7, 1.85, 90]]
+
+        self.detection_result = False
+        self.detection_result_stable = False
+        self.sudden_find = False
+        self.sudden_find_change_num = 10
+        # self.controller.set_gimbal_mode_client(1)
+
+        self.armor_nonecount = 0
+        self.deputy_nonecount = 0
+        self.blocked_thetas = []
+
+        self.goal_x = 0
+        self.goal_y = 0
+        self.goal_yaw = 0
+
+        self.robot_pose = {'x': 1, 'y': 1, 'theta': 0}
+        self.robot_pose_1 = {'x': 1.5, 'y': 1, 'theta': 0}
+        self.enemy_position = {'x':0, 'y':0, 'theta':0}
+        self.enemy_pose.enemy_dist = float('inf')
+        self.enemy_last = []
+        self.robot_last = []
+        self.detect_length = 10 # 保留10帧
+        self.enemy_yaw_chassis = 0
+        self.gimbal_angle_yaw = 0
+
+        self.test_duration = 0.5
+
+        self.is_cancel_goal_inbuff_flag = 0
+        # self.enemy_pose_last = EnemyPos()
+
+        # path planner action to execute the navigation goal
+        self.global_path_planner_action_client = actionlib.SimpleActionClient(
+            'global_planner_node_action', GlobalPlannerAction)
+        self.local_path_planner_action_client = actionlib.SimpleActionClient(
+            'local_planner_node_action', LocalPlannerAction)
+        self.local_path_planner_goal = LocalPlannerGoal
+        self.is_cancel_goal = 0
+
+        # armor detection action
+        self.armor_detection_action_client = actionlib.SimpleActionClient(
+            'armor_detection_node_action', ArmorDetectionAction)
+    	self.armor_detection_action_client.wait_for_server(rospy.Duration(0.5))
+        self.armor_detection_goal = ArmorDetectionGoal  
+
+        # supply parameters
+        self.supply_needed = False
+        #self.supplypoint_list = [[[3.86, 3.6, -90],[3.7, 3.6, -90]],[[4.0, 1.5, 90], [3.9, 1.5, 90]]]
+        self.supplypoint_list = [[3.7, 3.6, -90], [3.8, 3.6, -90]]
+        self.supplypoint_default = [4.1, 4.5, -90]
+        self.sendgoalresult = False
+        self.go_point_num = 0
+        self.breaksupply = False
+        self.breakpoint = [3.0, 4.4, 0]
+        self.tag_info = {'tag_detected': False, 'x': 0, 'z': 0, 'pitch': 0, 'distance': 0 }
+	#added by JK    
+
+    #region-----------SUBSCRIBER_NODES_INIT-----------#
+        rospy.Subscriber('robot_pose', Odometry, self.getSelfPoseCallback, queue_size=1)
+        rospy.Subscriber('gimbal_pose', Quaternion, self.getSelfGimbalCallback, queue_size=1)
+        rospy.Subscriber('armor_detection_info', ArmorDetection, self.getArmorDetectionCallback, queue_size=1)
+        rospy.Subscriber('field_bonus_status', BonusStatus, self.getBonusStatusCallback, queue_size=1)
+        rospy.Subscriber('field_supplier_status', SupplierStatus, self.getSupplierStatusCallback, queue_size=1)
+        rospy.Subscriber('game_result', GameResult, self.getGameResultCallback, queue_size=1)
+        rospy.Subscriber('game_status', GameStatus, self.getGameStatusCallback, queue_size=1)
+        rospy.Subscriber('game_survivor', GameSurvivor, self.getGameSurvivorCallback, queue_size=1)
+        #rospy.Subscriber('projectile_supply', ProjectileSupply, self.getProjectileSupplyCallback, queue_size=1)
+        rospy.Subscriber('robot_bonus', RobotBonus, self.getRobotBonusCallback, queue_size=1)
+        rospy.Subscriber('robot_damage', RobotDamage, self.getRobotDamageCallback, queue_size=1)
+        rospy.Subscriber('robot_heat', RobotHeat, self.getRobotHeatCallback, queue_size=1)
+        rospy.Subscriber('robot_shoot', RobotShoot, self.getRobotShootCallback, queue_size=1)
+        rospy.Subscriber('robot_status', RobotStatus, self.getRobotStatusCallback, queue_size=1)
+        #rospy.Subscriber('enemy_pose', ArmorDetection, self.getArmorDetectionCallback, queue_size=1) # add when testing simulation
+        rospy.Subscriber('bullet_amount',BulletAmount,self.BulletAmountJudge)
+        rospy.Subscriber('tag_detections',AprilTagDetectionArray,self.TagRPtoPitch)
+        rospy.Subscriber('heat_control_info', HeatControl, self.getProjectileAvailableNumCallback, queue_size=1)
+    #endregion-----------SUBSCRIBER_NODES_INIT-----------#  
+
+        self.supplytalker = rospy.Publisher('projectile_supply', ProjectileSupply, queue_size=1)
+
+    #region---------FOLLOW_INIT----------#
+
+        self.FOLLOW_stop_dist = 0.6 # 实车与仿真设置距离不同
+        self.FOLLOW_cancel_flag = 0
+        # 左下 左上 中 右上 右下 中上 中下
+        self.obstacle_conner = [[1.4, 1.4], [1.4, 2.4], [1.65, 2.4], [1.65, 1.4],
+                                [1.2, 3.75], [1.2, 4], [2.2, 4], [2.2, 3.25],
+                                [3.5, 2.375], [3.5, 2.625], [4.5, 2.625], [4.5, 2.375],
+                                [6.35, 2.6], [6.35, 3.6], [6.6, 3.6], [6.6, 2.6],
+                                [5.8, 1], [5.8, 1.25], [6.8, 1.25], [6.8, 1],
+                                [4.5, 4], [4.75, 4], [3.25, 1], [3.5, 1]]
+    #endregion--------FOLLOW_INIT-----------#
+   
+    #region---------SEARCH_INIT----------#
+        self.SEARCH_enemy_flag = True
+        self.SEARCH_hurt_flag = False
+        self.SEARCH_cancel_flag = 0
+        self.SEARCH_cancel_dist = 1 # 用于search中平滑移动
+        self.SEARCH_cancel_ammo_num = 10
+        self.SEARCH_stop_dist = 1.5 # 检测
+
+        self.SEARCH_cancel_remain_hp_rate = 0.7 # precent
+
+        self.SEARCH_status = []
+        self.SEARCH_flag = []
+
+        self.search_regions = []
+        self.search_region_1 = [[3.0, 1.5, 70], [2.0, 0.7, 60], [1.0, 0.7, 90], [0.7, 2.0, 70]]
+        # self.search_region_1 = [[3.0, 1.5, 70], [2.0, 0.7, 60], [1.0, 0.7, 90], [0.7, 2.0, 70]]
+        self.search_region_2 = [[0.7, 3.2, -10], [0.7, 4.6, 0], [2.5, 3.5, -50], [3.2, 3.8, -90], [4.0, 3.8, -100]]
+        # self.search_region_2 = [[0.7, 4.6, 0], [3.2, 3.8, -90], [0.7, 3.2, -10], [2.5, 3.5, -50], [4.0, 3.8, -100]]
+        self.search_region_3 = [[5.0, 3.5, -110], [6.0, 4.0, -120], [7.0, 4.4, -90], [7.3, 3.0, -110]]
+        # self.search_region_3 = [[7.3, 3.0, -110], [7.0, 4.4, -90], [5.0, 3.5, -110], [6.0, 4.0, -120]]
+        self.search_region_4 = [[7.3, 1.8, 170], [7.3, 0.5, 175], [5.5, 1.5, 130], [4.8, 1.3, 90], [4.0, 1.3, 80]]
+        # self.search_region_4 = [[4.0, 1.3, 80], [7.3, 0.5, 175], [5.5, 1.5, 130], [7.3, 1.8, 170], [4.8, 1.6, 90]]
+
+        # self.search_region_1 = [[3.4, 1.6, 100], [2.9, 1.4, 95], [2.4, 1.0, 85], [2.0, 0.8, 75], [1.7, 0.8, 50], [1.2, 0.8, 70], [0.9, 1.2, 80], [0.8, 1.6, 70], [0.8, 2.0, 45], [0.8, 2.4, 20]]
+
+        self.search_regions.append(self.search_region_1)
+        self.search_regions.append(self.search_region_2)
+        self.search_regions.append(self.search_region_3)
+        self.search_regions.append(self.search_region_4)
+    #endregion--------SEARCH_INIT-----------#
+
+
+    #region-----------REFEREE_SYSTEM_PARAMETERS_INIT------------# 
+        #bonus zone status
+        self.RED_BONUS_STATUS = 0
+        self.BLUE_BONUS_STATUS = 0
+        #game result
+        # uint8  DRAW=0
+        # uint8  RED_WIN=1
+        # uint8  BLUE_WIN=2
+        # uint8  result
+
+        #game status
+        self.GAME_STATUS = 0
+        self.REMAINING_TIME = float('inf')
+        #robot survival
+        self.RED3_SURVIVOR = True
+        self.RED4_SURVIOR = True
+        self.BLUE3_SURVIVOR = True
+        self.BLUE4_SURVIVOR = True
+        #projectile supply
+        self.PROJECTILE_SUPPLY = 0
+        #robot bonus
+        self.ROBOT_BONUS = 0
+        #robot damage
+        self.ARMOR_HIT_NUM = -1 # 
+        #robot power and heat data
+        self.CHASSIS_VOLT = 0
+        self.CHASSIS_CURRENT = 0
+        self.CHASSIS_POWER = 0
+        self.CHASSIS_POWER_BUFFER = 222
+        self.SHOOTER_HEAT = 10000
+        #robot shoot data
+        self.SHOOT_FREQUENCY = 0
+        self.SHOOT_SPEED = 0
+        #robot status
+        # self.ROBOT_STATUS = data 
+        self.REMAIN_HP = 2000
+        self.MAX_HP = 2000
+        self.HEAT_COOLING_LIMIT = 0
+        self.HEAT_COOLING_RATE = 0
+        self.GIMBAL_OUTPUT = False
+        self.CHASSIS_OUTPUT = False
+        self.SHOOTER_OUTPUT = False
+        #supplier status
+        self.SUPPLIER_STATUS = 0
+    #endregion-------------REFEREE_SYSTEM_PARAMETERS_INIT-------------- #
+
+    #endregion-------BASE_INIT--------#
+
+    #tag_detection callback------------------------------# 
+    def TagRPtoPitch(self,data):
+        #rospy.loginfo(data.detections)
+        if len(data.detections) != 0:
+            tag_pose = data.detections[0].pose.pose.pose
+            distance = math.sqrt(math.pow(tag_pose.position.x,2)+math.pow(tag_pose.position.z,2))
+            if distance < 4 :
+                self.tag_info['tag_detected'] = True
+                qx = tag_pose.orientation.x
+                qy = tag_pose.orientation.y
+                qz = tag_pose.orientation.z
+                qw = tag_pose.orientation.w
+                angle = euler_from_quaternion((qx,qy,qz,qw))
+                self.tag_info['x'] = tag_pose.position.x
+                self.tag_info['z'] = tag_pose.position.z
+                self.tag_info['pitch'] = math.degrees(angle[1])
+                self.tag_info['distance'] = distance
+                #rospy.loginfo(self.tag_info)
+
+    #bulletamount callback--------------------------------#
+    def BulletAmountJudge(self,data):
+        if data.state == True:
+            self.supply_needed = True
+            #self.supply_tagnum = data.tag_num
+        else:   
+            self.supply_needed = False
+
+    #region------------BASE_INFO_INIT--------------#
+
+    def normalizeRadian(self, theta): # 将角度degree归一化为[-pi, pi]
+        return math.atan2(math.sin(math.radians(theta)), math.cos(math.radians(theta)))
+
+    # gimbal- 0 for track, 1 for patrol, 2 for dodge
+    # chassis- 0 for normal, 1 for dodge
+    def enterDodge(self):
+        self.controller.chassis_mode_switch(1)
+        self.controller.gimbal_mode_switch(2)
+    
+    def outDodge(self):
+        self.controller.chassis_mode_switch(0)
+        self.controller.gimbal_mode_switch(1)
+
+    def getProjectileAvailableNumCallback(self, data): # 100Hz update
+        self.ammo_available_num = data.shoot_num
+
+    def getSelfPoseCallback(self, data):
+        self.robot_pose['x'] = data.pose.pose.position.x
+        self.robot_pose['y'] = data.pose.pose.position.y
+        qx = data.pose.pose.orientation.x
+        qy = data.pose.pose.orientation.y
+        qz = data.pose.pose.orientation.z
+        qw = data.pose.pose.orientation.w
+        angle = euler_from_quaternion((qx,qy,qz,qw))
+        self.robot_pose['theta'] = math.degrees(angle[2])
+        # self.blockedPoseAnalysis(self.robot_pose['x'], self.robot_pose['y'],
+        #                          self.robot_pose['theta'])
+
+    def getSelfGimbalCallback(self, data):
+        rpy = euler_from_quaternion([data.x, data.y, data.z, data.w])
+        self.gimbal_angle_yaw =  rpy[2]
+        #self.gimbal_angle_pitch = rpy[1]
+
+    def getArmorDetectionCallback(self, data):# 更新敌人有效坐标位置
+        self.enemy_pose.enemy_yaw = self.normalizeRadian(math.degrees(data.yaw_angle) + self.robot_pose['theta']) # radian
+        self.enemy_yaw_chassis = data.yaw_angle
+        del self.robot_last[:]
+        self.robot_last.append([self.robot_pose['x'], self.robot_pose['y']])
+
+        if data.distance > 0:
+            self.enemy_position['x'] = data.distance / 1000.0 * math.cos(self.enemy_pose.enemy_yaw) + self.robot_pose['x']
+            self.enemy_position['y'] = data.distance / 1000.0 * math.sin(self.enemy_pose.enemy_yaw) + self.robot_pose['y']
+            # print ("gADC----data.distance is {}"sendgoalresult.format(self.enemy_pose.enemy_dist))
+            # print ('gADC--enemy_pose is {0}, {1}'.format(self.enemy_position['x'], self.enemy_position['y']))
+            if len(self.enemy_last) < self.detect_length:
+                self.enemy_last.append([self.enemy_position['x'], self.enemy_position['y']])
+            else:
+                self.enemy_last.pop(0)
+                self.enemy_last.append([self.enemy_position['x'], self.enemy_position['y']])
+
+            self.detection_result = True
+            self.num_detected_enemy += 1
+            self.num_not_detected_enemy = 0
+            
+            self.enemy_pose.enemy_dist = data.distance / 1000.0
+            self.controller.gimbal_mode_switch(0) # 给视觉锁定
+        else:
+            del self.enemy_last[:]
+            self.detection_result_stable = False
+            self.num_not_detected_enemy += 1
+            self.num_detected_enemy = 0
+            self.enemy_pose.enemy_dist = 0
+        
+        if self.num_detected_enemy > 0 and self.num_detected_enemy < self.sudden_find_change_num:
+            self.sudden_find = True
+        else:
+            self.sudden_find = False
+        
+        if self.num_not_detected_enemy > 10:
+            self.detection_result = False
+            self.enemy_pose.enemy_dist = 0
+            #self.controller.gimbal_mode_switch(1) # 底盘控制左右摆
+
+        if self.num_detected_enemy > 50: # 稳定检测
+            self.detection_result_stable = True
+
+        if not self.sudden_find:
+            self.SEARCH_enemy_flag = True
+        # print ("gADC------------------sudden_find is{0}, num_deteced is {1}".format(self.sudden_find, self.num_detected_enemy))
+    
+    def pointToEnemy(self):
+        toImage = 200
+        offset_image, offset = int(0.375 * toImage), 0.2
+        px = int(np.around(self.robot_pose['x'] * toImage)) # 自身转换到图像坐标
+        py = 1000 - int(np.around(self.robot_pose['y'] * toImage))
+        # if px > offset_image and self.map[py, px - offset_image] != 255: # 左边障碍
+        #     self.robot_pose['x'] += offset
+        # elif px < (1600 - offset_image) and self.map[py, px + offset_image] != 255: # 右边障碍
+        #     self.robot_pose['x'] -= offset
+        # elif py > offset_image and self.map[py - offset_image, px] != 255: # 上方障碍
+        #     self.robot_pose['y'] -= offset
+        # elif py < (1000 - offset_image) and self.map[py + offset_image, px] != 255: # 下方障碍
+        #     self.robot_pose['y'] += offset
+        
+        if self.enemy_pose.enemy_dist > 0:
+            self.point_to_enemy_radian = math.atan2(self.enemy_position['y'] - self.robot_pose['y'], self.enemy_position['x'] - self.robot_pose['x'])
+        elif self.ARMOR_HIT_NUM == 0: # forward
+            self.point_to_enemy_radian = self.normalizeRadian(self.robot_pose['theta'])
+        elif self.ARMOR_HIT_NUM == 1: # backward
+            self.point_to_enemy_radian = self.normalizeRadian(self.robot_pose['theta'] + 180)
+        elif self.ARMOR_HIT_NUM == 2: # left
+            self.point_to_enemy_radian = self.normalizeRadian(self.robot_pose['theta'] + 90)
+        elif self.ARMOR_HIT_NUM == 3: # right
+            self.point_to_enemy_radian = self.normalizeRadian(self.robot_pose['theta'] - 90)
+
+        quat = tf.transformations.quaternion_from_euler(0, 0, self.point_to_enemy_radian)
+        self.navgoal.goal.pose.position.x = self.robot_pose['x']
+        self.navgoal.goal.pose.position.y = self.robot_pose['y']
+        self.navgoal.goal.pose.orientation.x = quat[0]
+        self.navgoal.goal.pose.orientation.y = quat[1]
+        self.navgoal.goal.pose.orientation.z = quat[2]
+        self.navgoal.goal.pose.orientation.w = quat[3]
+        self.navgoal.goal.header.stamp = rospy.Time().now()
+        self.send_goal_force(self.navgoal)
+
+    def isActionAvaliable(self, goal_x, goal_y, goal_theta): # theta是角度  
+        # 转换为图像坐标,icra2019_s.pgm像素大小1600*1000,对应场地8*5
+        px = int(np.around(goal_x * 200))
+        py = 1000 - int(np.around(goal_y * 200))
+        quat = tf.transformations.quaternion_from_euler(0, 0, math.radians(goal_theta))
+        try:
+            # robot_size [0.6 0.45 0.460],占用像素大小[120, 90, 92]
+            SIZE = 50
+            if (py <= 60) or (py >= 940) or (px <= 60) or (px >= 1540):
+                return False
+            if self.map[py+SIZE, px+SIZE] != 255 or self.map[py-SIZE, px-SIZE] != 255:
+                return False
+            if self.map[py+SIZE, px-SIZE] != 255 or self.map[py-SIZE, px+SIZE] != 255:
+                return False
+            self.navgoal.goal.pose.position.x = goal_x
+            self.navgoal.goal.pose.position.y = goal_y
+            self.navgoal.goal.pose.orientation.x = quat[0]
+            self.navgoal.goal.pose.orientation.y = quat[1]
+            self.navgoal.goal.pose.orientation.z = quat[2]
+            self.navgoal.goal.pose.orientation.w = quat[3]
+            self.navgoal.goal.header.stamp = rospy.Time().now()
+            return True
+        except:
+            pass
+    
+    def isReachable(self, enemy_x, enemy_y, self_x, self_y):
+        # 转化到图像坐标系
+        enemy_x_i = int(np.around(enemy_x * 200))
+        enemy_y_i = int(np.around(enemy_y * 200))
+        self_x_i = int(np.around(self_x * 200))
+        self_y_i = int(np.around(self_y * 200))
+        if enemy_x_i >= 1600 or enemy_x_i < 0 or enemy_y_i >= 1000 or enemy_y_i < 0:
+            return False
+        if self_x_i >= 1600 or self_x_i < 0 or self_y_i >= 1000 or self_y_i < 0:
+            return False
+
+        A = np.mat([[self_x_i, 1], [enemy_x_i, 1]])
+        B = np.mat([[self_y_i], [enemy_y_i]])
+
+        if np.linalg.det(A) != 0:
+            _k_b_ = np.linalg.solve(A, B)
+            if self_x_i > enemy_x_i:
+                self_x_i, enemy_x_i = enemy_x_i, self_x_i
+            for x in range(self_x_i, enemy_x_i):
+                y = int(np.around(_k_b_[0, 0] * x + _k_b_[1, 0]))
+                if self.map[1000 - y, x] < 255:
+                    return False
+        elif self_y_i > enemy_y_i:
+            self_x_i, enemy_x_i = enemy_x_i, self_x_i
+            for y in range(self_y_i, enemy_y_i):
+                if self.map[1000 - y, self_x_i] < 255:
+                    return False
+        return True
+
+    def enemy_close(self):
+        if len(self.enemy_last) < self.detect_length:
+            return 0
+        elif ((self.enemy_last[9][0] - self.enemy_last[0][0]) * (self.robot_last[0][0] - self.enemy_last[0][0]) + (
+            self.enemy_last[9][1] - self.enemy_last[0][1]) * (self.robot_last[0][1] - self.enemy_last[0][1])) > 0:
+            return 1 # 靠近
+        else:
+            return 2 # 远离
+    #endregion------------BASE_INFO_INIT--------------#
+
+
+    #region---------------------SEARCH_send_goal----------------------- # 
+    def send_goal_in_search(self, goal):
+        if self.breakInSearch():
+            self.global_path_planner_action_client.cancel_all_goals()
+            return False
+
+        # rospy.loginfo('send navigation goal')
+        self.global_path_planner_action_client.send_goal(
+                goal, feedback_cb=self.global_planner_feedback)
+        self.global_path_planner_action_client.wait_for_result(rospy.Duration(10))
+        return True
+    
+    def global_planner_feedback(self, feedback):
+        if self.breakInSearch():
+            self.global_path_planner_action_client.cancel_all_goals()
+            self.local_path_planner_action_client.cancel_all_goals()
+            return False
+
+        if len(feedback.path.poses) != 0:
+            self.local_path_planner_goal.route = feedback.path
+            self.local_path_planner_action_client.send_goal(self.local_path_planner_goal,feedback_cb=self.local_path_planner_feedback_cb)
+            return True
+
+    def breakInSearch(self): # break in search 
+        if self.sudden_find and self.SEARCH_enemy_flag: # detect out
+            self.SEARCH_enemy_flag = False
+            rospy.logwarn("gppfcb---------cancel_goal_for_sudden_find!----------")
+            self.SEARCH_cancel_flag = 1
+            return True
+        if self.ARMOR_HIT_NUM != -1 and self.detection_result == False: # hit out
+            self.SEARCH_cancel_flag = 2
+            return True
+        if self.enemy_pose.enemy_dist > 0 and self.enemy_pose.enemy_dist < self.SEARCH_stop_dist: # close out
+            rospy.logwarn("gppfcb------------cancel_goal_for_{}_distance!-----------".format(self.enemy_pose.enemy_dist))
+            self.SEARCH_cancel_flag = 3
+            return True
+
+        dist_me = math.hypot(self.robot_pose['x']-self.navgoal.goal.pose.position.x, self.robot_pose['y']-self.navgoal.goal.pose.position.y)
+        if dist_me < self.SEARCH_cancel_dist: # search point close cancle out
+            self.SEARCH_cancel_flag = 4
+            return True
+        if self.detection_result:
+            dist_enemy = math.hypot(self.enemy_position['x']-self.navgoal.goal.pose.position.x, self.enemy_position['y']-self.navgoal.goal.pose.position.y)
+            if dist_enemy > 1:
+                self.SEARCH_cancel_flag = 1
+                return True
+        # if self.REMAIN_HP < self.SEARCH_cancel_remain_hp_rate * self.REMAIN_HP or self.ammo_num < self.SEARCH_cancel_ammo_num: # loss out
+        #     self.SEARCH_cancel_flag = 4
+        #     return False
+        return False
+    #endregion---------------------SEARCH_send_goal----------------------- # 
+
+    #region---------------------FOLLOW_send_goal----------------------- # 
+    def send_goal_in_follow(self, goal):
+        if self.cancelGoalInFollow():
+            self.global_path_planner_action_client.cancel_all_goals()            
+            rospy.logwarn("-------------cancel_goal_in_follow_send_goal!!!!---------")
+            
+        else:
+            self.global_path_planner_action_client.send_goal(goal, feedback_cb=self.global_planner_feedback_follow)
+            self.global_path_planner_action_client.wait_for_result(rospy.Duration(4))
+            rospy.loginfo('send navigation goal_follow')
+
+    def global_planner_feedback_follow(self, feedback):
+        if self.cancelGoalInFollow():
+            self.local_path_planner_action_client.cancel_all_goals()
+            self.global_path_planner_action_client.cancel_all_goals()         
+            rospy.logwarn("-------------cancel_goal_in_global_path_planner_follow!!!!---------")
+        if len(feedback.path.poses) != 0:
+            self.local_path_planner_goal.route = feedback.path
+            self.local_path_planner_action_client.send_goal_and_wait(self.local_path_planner_goal)
+            # self.local_path_planner_action_client.wait_for_result(rospy.Duration(2))                   
+    
+    def cancelGoalInFollow(self):
+        if self.detection_result_stable == False:
+            self.Follow_cancel_flag = 1
+            return True
+        if self.enemy_pose.enemy_dist > 0 and self.enemy_pose.enemy_dist < self.FOLLOW_stop_dist and self.enemy_close() == 1:
+            self.Follow_cancel_flag = 2
+            return True
+        else:
+            self.Follow_cancel_flag = 0
+            return False
+    #endregion---------------------FOLLOW_send_goal----------------------- #
+
+    #region----------send_goal_origin-----------#
+    #send navigatioin goal force
+    def send_goal_force(self, goal): # 强制路径规划
+        # rospy.loginfo('send navigation goal force!')
+        self.global_path_planner_action_client.send_goal(goal, feedback_cb=self.global_planner_feedback_force)
+        self.global_path_planner_action_client.wait_for_result(rospy.Duration(1))
+    def global_planner_feedback_force(self, feedback):
+        self.local_path_planner_goal.route = feedback.path
+        self.local_path_planner_action_client.send_goal(self.local_path_planner_goal,feedback_cb=self.local_path_planner_feedback_cb)
+        return True
+
+    #region-----------send_goal_buff
+    def send_goal_buff(self, goal):
+        #if not self.detection_result_stable and self.RED_BONUS_STATUS==0:
+        if not self.sudden_find and self.RED_BONUS_STATUS==0:     
+            rospy.loginfo('send navigation goal')
+            self.global_path_planner_action_client.send_goal(
+                goal, feedback_cb=self.global_planner_feedback_buff)
+            self.global_path_planner_action_client.wait_for_result(rospy.Duration(2))
+
+        else:
+            self.global_path_planner_action_client.cancel_all_goals()
+            self.is_cancel_goal_inbuff_flag = 1
+            rospy.logwarn("-------------cancel_goal_in_send_goal!!!!---------")
+    def global_planner_feedback_buff(self, feedback):
+        print ("--------global_planner---,detection_result_stable is {}".format(self.sudden_find))
+        if not self.cancleGoalInBuff():
+            self.global_path_planner_action_client.cancel_all_goals()
+            self.local_path_planner_action_client.cancel_all_goals()
+            rospy.logwarn("--------cancel_goal_for_detection_result_stable! or the buff has been Got!!!----------")
+        if len(feedback.path.poses) != 0:
+            self.local_path_planner_goal.route = feedback.path
+            self.local_path_planner_action_client.send_goal(self.local_path_planner_goal,feedback_cb=self.local_path_planner_feedback_cb)
+    
+    def cancleGoalInBuff(self):
+        if self.sudden_find or self.RED_BONUS_STATUS!=0:
+            if (6.2<=self.robot_pose['x']<=6.4)  and (1.6<=self.robot_pose['y']<=1.9):
+                return True
+            else:
+                return False
+        return True
+    #endregion---------send_goal_buff
+
+    # send navigation goal
+    def send_goal(self, goal):
+        # print ("--------start_send_goal---{}".format(self.sudden_find))
+        if not self.sudden_find:
+            rospy.loginfo('send navigation goal')
+            # print ('enemy_pose is {0}, {1}'.format(self.enemy_position['x'], self.enemy_position['y']))
+            self.global_path_planner_action_client.send_goal(
+                goal, feedback_cb=self.global_path_planner_feedback_cb)
+            #self.global_path_planner_action_client.wait_for_result(rospy.Duration(5))
+            self.sendgoalresult = self.global_path_planner_action_client.wait_for_result(rospy.Duration(2))
+        else:
+            self.global_path_planner_action_client.cancel_all_goals()
+            #self. = 1
+            rospy.logwarn("-------------cancel_goal_in_send_goal!!!!---------")
+
+    # global path planner feedback
+    def global_path_planner_feedback_cb(self, feedback):
+        # print ("--------global_planner---,sudden_find is {}".format(self.sudden_find))
+        if not self.sudden_find:
+            if len(feedback.path.poses) != 0:
+                self.local_path_planner_goal.route = feedback.path
+                self.local_path_planner_action_client.send_goal(self.local_path_planner_goal,feedback_cb=self.local_path_planner_feedback_cb)
+        else:
+            self.global_path_planner_action_client.cancel_all_goals()
+            #self. = 1
+            rospy.logwarn("-------------cancel_goal_in_global_path_planner_fb!!!!---------")
+        
+                
+    def local_path_planner_feedback_cb(self, feedback):
+        # print ("--------local_planner---,sudden_find is{}".format(self.sudden_find))
+        # if self.sudden_find:
+        #     self.local_path_planner_action_client.cancel_all_goals()
+        #     self.is_cancel_goal = True
+        pass
+    #endregion----------send_goal_origin-----------#
+
+
+    #region------------------REFEREE_SYSTEM_CALLBACK--------------------- #
+    def getBonusStatusCallback(self, data):
+        # bonus zone status
+        # uint8 UNOCCUPIED = 0
+        # uint8 BEING_OCCUPIED= 1
+        # uint8 OCCUPIED = 2
+        # uint8 red_bonus
+        # uint8 blue_bonus
+        self.RED_BONUS_STATUS = data.red_bonus
+        self.BLUE_BONUS_STATUS = data.blue_bonus
+
+    def getGameResultCallback(self, data):
+        # game result
+        # uint8  DRAW=0
+        # uint8  RED_WIN=1
+        # uint8  BLUE_WIN=2
+        # uint8  result
+        pass
+    
+    def getGameStatusCallback(self, data):
+        # game status
+        # uint8 PRE_MATCH = 0
+        # uint8 SETUP = 1
+        # uint8 INIT = 2
+        # uint8 FIVE_SEC_CD = 3
+        # uint8 ROUND = 4
+        # uint8 CALCULATION = 5
+        # uint8 game_status
+        # uint16 remaining_time
+        self.GAME_STATUS = data.game_status
+        self.REMAINING_TIME = data.remaining_time
+
+    def getGameSurvivorCallback(self, data):
+        # robot survival
+        # bool red3
+        # bool red4
+        # bool blue3
+        # bool blue4
+        self.RED3_SURVIVOR = data.red3
+        self.RED4_SURVIOR = data.red4
+        self.BLUE3_SURVIVOR = data.blue3
+        self.BLUE4_SURVIVOR = data.blue4
+
+    def getProjectileSupplyCallback(self, data): # 没有数据
+        # projectile supply
+        # bool supply 
+        self.PROJECTILE_SUPPLY = data.supply
+
+    def getRobotBonusCallback(self, data): # 没有数据
+        # robot bonus
+        # bool bonus
+        self.ROBOT_BONUS = data.bonus
+
+    def getRobotDamageCallback(self, data):
+        # robot damage
+        # uint8 ARMOR = 0
+        # uint8 OFFLINE = 1
+        # uint8 EXCEED_HEAT = 2
+        # uint8 EXCEED_POWER = 3
+        # uint8 damage_type
+        # uint8 FORWARD = 0
+        # uint8 BACKWARD = 1
+        # uint8 LEFT = 2
+        # uint8 RIGHT = 3
+        # uint8 damage_source
+
+        #forward
+        if data.damage_source == 0 and data.damage_type == 0:
+            self.ARMOR_HIT_NUM = 0
+            self.armor_nonecount = 0
+            rospy.logwarn('armor 0') 
+        #backward
+        elif data.damage_source == 1 and data.damage_type == 0:
+            self.ARMOR_HIT_NUM = 1
+            self.armor_nonecount = 0
+            rospy.logwarn('armor 1') 
+        #left
+        elif data.damage_source == 2 and data.damage_type == 0:
+            self.ARMOR_HIT_NUM = 2
+            self.armor_nonecount = 0
+            # print 'armor 2'
+            rospy.logwarn('armor 2') 
+
+        #right    
+        elif data.damage_source == 3 and data.damage_type == 0:
+            self.ARMOR_HIT_NUM = 3
+            self.armor_nonecount = 0
+            # print 'armor 3'
+            rospy.logwarn('armor 3') 
+        else:
+            if self.armor_nonecount == 2:
+                self.ARMOR_HIT_NUM = -1
+                self.armor_nonecount = 0
+                # print 'armor -1'
+                rospy.logwarn('armor -1') 
+            else:
+                self.armor_nonecount = self.armor_nonecount + 1
+
+    def getRobotHeatCallback(self, data):
+        # robot power and heat data
+        # uint16 chassis_volt
+        # uint16 chassis_current
+        # float64  chassis_power
+        # uint16 chassis_power_buffer
+        # uint16 shooter_heat
+        self.CHASSIS_VOLT = data.chassis_volt
+        self.CHASSIS_CURRENT = data.chassis_current
+        self.CHASSIS_POWER = data.chassis_power
+        self.CHASSIS_POWER_BUFFER = data.chassis_power_buffer # 无数据
+        self.SHOOTER_HEAT = data.shooter_heat # 实时冷却后的热量
+
+    def getRobotShootCallback(self, data): # 无数据
+        # robot shoot data
+        # uint8 frequency
+        # float64 speed
+        self.SHOOT_FREQUENCY = data.frequency
+        self.SHOOT_SPEED = data.speed
+
+    def getRobotStatusCallback(self, data):
+        # robot status
+        # uint8 id
+        # uint8 level
+        # uint16 remain_hp
+        # uint16 max_hp
+        # uint16 heat_cooling_limit
+        # uint16 heat_cooling_rate
+        # bool gimbal_output
+        # bool chassis_output
+        # bool shooter_output
+        self.ROBOT_STATUS = data 
+
+        self.REMAIN_HP = data.remain_hp
+        self.MAX_HP = data.max_hp
+        self.HEAT_COOLING_LIMIT = data.heat_cooling_limit
+        self.HEAT_COOLING_RATE = data.heat_cooling_rate
+        self.GIMBAL_OUTPUT = data.gimbal_output
+        self.CHASSIS_OUTPUT = data.chassis_output
+        self.SHOOTER_OUTPUT = data.shooter_output
+        
+    def getSupplierStatusCallback(self, data):
+        # supplier status
+        # uint8 CLOSE = 0
+        # uint8 PREPARING = 1
+        # uint8 SUPPLYING = 2
+        # uint8 status
+        self.SUPPLIER_STATUS = data.status
+    #endregion------------------REFEREE_SYSTEM_CALLBACK--------------------- #
+
+
+    # TODO 
+        
+
+if __name__ == '__main__':
+    rospy.init_node('Battle')
+    env = BattleEnv()
+    rospy.spin()

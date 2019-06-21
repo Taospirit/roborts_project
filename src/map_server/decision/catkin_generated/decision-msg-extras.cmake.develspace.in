@@ -1,0 +1,2 @@
+set(decision_MESSAGE_FILES "/home/nvidia/hitsz_icra_2019/src/decision/msg/EnemyPos.msg;/home/nvidia/hitsz_icra_2019/src/decision/msg/GameBuff.msg;/home/nvidia/hitsz_icra_2019/src/decision/msg/Hurt.msg;/home/nvidia/hitsz_icra_2019/src/decision/msg/GameInfo.msg;/home/nvidia/hitsz_icra_2019/src/decision/msg/RFID.msg")
+set(decision_SERVICE_FILES "")

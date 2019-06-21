@@ -1,0 +1,6 @@
+uint8 chassis_mode
+#uint8 normal = 0
+#uint8 dodge = 1
+#uint8 supply_dodge = 2
+---
+bool received

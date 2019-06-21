@@ -1,0 +1,8 @@
+prefix=/home/nvidia/hitsz_icra_2019/install_isolated
+
+Name: apriltags2
+Description: Description of apriltags2
+Version: 0.9.8
+Cflags: -I/home/nvidia/hitsz_icra_2019/install_isolated/include
+Libs: -L/home/nvidia/hitsz_icra_2019/install_isolated/lib -lapriltags2
+Requires: 
