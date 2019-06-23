@@ -301,7 +301,7 @@ class BattleEnv():
         #region---------TEAM_MSG---------#
         self.ID_MAP = {3:4, 4:3, 13:14, 14:13}
         self.CMD_TO_MATE = 0
-        self.MATE_ID = 0
+        self.MATE_ID = 3
         self.MATE_POSE = {'x':0, 'y':0, 'theta':0}
         self.MATE_REMAIN_HP = 0
         self.MATE_PJT_INFO = 0 # 0 for none, 1 for not enough, 2 for enough

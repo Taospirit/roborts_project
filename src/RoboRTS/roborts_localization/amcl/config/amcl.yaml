@@ -39,7 +39,7 @@ transform_tolerance : 0.1
 recovery_alpha_slow : 0.001
 recovery_alpha_fast : 0.1
 
-use_global_localization : false
+use_global_localization : true
 random_heading : true
 laser_filter_weight : 0.4
 
