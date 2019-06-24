@@ -1,7 +1,15 @@
 <launch>
-
+    <arg name="static_transform_base2laser" value="0.15 0.0 0.05 0.0 0.0 0.0 base_link base_laser_link" />
+    <arg name="static_transform_base2rs" value="-0.15 0.0 0.05 0.0 0.0 0.0 base_link rs_link" />
     <!--static_transform_publisher x y z yaw pitch roll frame_id child_frame_id-->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_base_laser_link_broadcaster"
-          args="-0.15 0.0 0.05 0.0 0.0 0.0 base_link base_laser_link" />
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_base_laser_link_broadcaster"
+          args="-0.15 0.0 0.05 0.0 0.0 0.0 base_link base_laser_link" /> -->
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="base_to_laser" args="$(arg static_transform_base2laser)"/>
+
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_base_laser_link_broadcaster" args="$(arg static_transform_base2laser)"/> -->
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="base_to_rs" args="$(arg static_transform_base2rs)" />
+
           
 </launch>
