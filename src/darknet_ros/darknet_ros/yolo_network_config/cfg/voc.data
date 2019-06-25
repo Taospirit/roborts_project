@@ -1,5 +1,0 @@
-classes= 2
-train  = /home/pjreddie/data/voc/train.txt
-valid  = /home/pjreddie/data/voc/2007_test.txt
-names = /home/nvidia/hitsz_icra_2019/src/darknet_ros/darknet_ros/yolo_network_config/cfg/voc.names
-backup = backup
