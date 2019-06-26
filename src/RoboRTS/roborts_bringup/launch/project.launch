@@ -9,11 +9,13 @@
   <include file="$(find roborts_bringup)/launch/base.launch" />
   <!-- Publish static tf -->
   <include file="$(find roborts_bringup)/launch/static_tf.launch" />
-  <!-- Run the slam gmapping -->
-  <include file="$(find roborts_bringup)/launch/slam_gmapping.xml"/>
+  <!-- Run the laser follower -->
+  <include file="$(find lidar_follower)/launch/laser_follower.launch" />
 
   <!-- Run the map server -->
   <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(find roborts_bringup)/maps/$(arg map).yaml" respawn="false" /> -->
+  <!-- Run the slam gmapping -->
+  <include file="$(find roborts_bringup)/launch/slam_gmapping.xml"/>
 
   <!-- Run the lidar node -->
   <node name="rplidar_node" pkg="rplidar_ros" type="rplidarNode" output="screen">
@@ -44,6 +46,7 @@
     <rosparam command="load" file="$(find roborts_planning)/local_planner/config/local_planner.yaml" />
   </node>
 
+  <node pkg="decision" type="pose_update.py" name="pose_update" />
   <!-- Run the rviz -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find roborts_bringup)/rviz/$(arg rviz_name).rviz" />
   

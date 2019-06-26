@@ -22,7 +22,7 @@ if __name__ == '__main__':
     rate = rospy.Rate(40.0)
     while not rospy.is_shutdown():
         try:
-            t, q = tf1.lookupTransform("/map", node_ns + 'base_link', rospy.Time(0))
+            t, q = tf1.lookupTransform("/map", 'base_link', rospy.Time(0))
             pose.pose.pose.position.x = t[0]
             pose.pose.pose.position.y = t[1]
             pose.pose.pose.orientation.x = q[0]

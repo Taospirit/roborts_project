@@ -4,11 +4,15 @@
 import rospy
 import thread, threading
 import time
+import math
 import numpy as np
 from sensor_msgs.msg import Joy, LaserScan
+from std_msgs.msg import String
 from geometry_msgs.msg import Twist, Vector3, PointStamped
 from lidar_follower.msg import position as PositionMsg
 from tf.transformations import euler_from_quaternion
+from nav_msgs.msg import Odometry
+
 		
 class laserTracker:
 	def __init__(self):
@@ -17,27 +21,38 @@ class laserTracker:
 		self.deltaDist = rospy.get_param('~deltaDist')
 		self.scanSubscriber = rospy.Subscriber('/scan', LaserScan, self.registerScan)
 		self.positionPublisher = rospy.Publisher('/object_tracker/current_position', PositionMsg,queue_size=3)
-		self.infoPublisher = rospy.Publisher('/object_tracker/info', StringMsg, queue_size=3)
+		self.infoPublisher = rospy.Publisher('/object_tracker/info', String, queue_size=3)
 
 		self.robot_pose = {'x': 0, 'y': 0, 'theta': 0}
 		self.pose_sub = rospy.Subscriber('/robot_pose', Odometry, self.getSelfPoseCallback)
 
-		self.point_pub = rospy.Publisher('/trackPoint', PointStamped, queue_size=1)
-		self.point_pub_ = PointStamped()
-		self.point_pub_.header.frame_id = 'map'
-        self.point_pub_.header.stamp = rospy.Time()
-        self.point_pub_.point.x, self.point_pub_.point.y, self.point_pub_.point.z = 0, 0, 0
+		self.self_point_pub = rospy.Publisher('/selfPoint', PointStamped, queue_size=1)
+		self.self_point_pub_ = PointStamped()
+		self.self_point_pub_.header.frame_id = 'map'
+		self.self_point_pub_.header.stamp = rospy.Time()
+		self.self_point_pub_.point.x, self.self_point_pub_.point.y, self.self_point_pub_.point.z = 0, 0, 0
+
+		self.track_point_pub = rospy.Publisher('/trackPoint', PointStamped, queue_size=1)
+		self.track_point_pub_ = PointStamped()
+		self.track_point_pub_.header.frame_id = 'map'
+		self.track_point_pub_.header.stamp = rospy.Time()
+		self.track_point_pub_.point.x, self.track_point_pub_.point.y, self.track_point_pub_.point.z = 0, 0, 0
 		self.sign = 1
 
 	def getSelfPoseCallback(self, data):
 		self.robot_pose['x'] = data.pose.pose.position.x
-        self.robot_pose['y'] = data.pose.pose.position.y
-        qx = data.pose.pose.orientation.x
-        qy = data.pose.pose.orientation.y
-        qz = data.pose.pose.orientation.z
-        qw = data.pose.pose.orientation.w
-        rad = euler_from_quaternion((qx,qy,qz,qw))
-        self.robot_pose['theta'] = rad[2] # rad
+		self.robot_pose['y'] = data.pose.pose.position.y
+		qx = data.pose.pose.orientation.x
+		qy = data.pose.pose.orientation.y
+		qz = data.pose.pose.orientation.z
+		qw = data.pose.pose.orientation.w
+		rad = euler_from_quaternion((qx,qy,qz,qw))
+		self.robot_pose['theta'] = rad[2] # rad
+
+		self.self_point_pub_.point.x = self.robot_pose['x']
+		self.self_point_pub_.point.y = self.robot_pose['y']
+		self.self_point_pub.publish(self.self_point_pub_)
+
 
 	def registerScan(self, scan_data):
 		# registers laser scan and publishes position of closest object (or point rather)
@@ -81,10 +96,10 @@ class laserTracker:
 			
 			# publish warning that we did not find anything
 			rospy.logwarn('laser no object found')
-			self.infoPublisher.publish(StringMsg('laser:nothing found'))
+			self.infoPublisher.publish(String('laser:nothing found'))
 
-			self.point_pub_.point.x, self.point_pub_.point.y, self.point_pub_.point.z = 0, 0, 0
-			self.point_pub.publish(self.point_pub_)
+			self.track_point_pub_.point.x, self.track_point_pub_.point.y, self.track_point_pub_.point.z = 0, 0, 0
+			self.track_point_pub.publish(self.track_point_pub_)
 		
 		else:
 			# calculate angle of the objects location. 0 is straight ahead
@@ -93,9 +108,9 @@ class laserTracker:
 			self.positionPublisher.publish(PositionMsg(minDistanceAngle, 42, minDistance))
 
 			delta_theta = self.robot_pose['theta'] + self.sign * minDistanceAngle
-			self.point_pub_.point.x = self.robot_pose['x'] + math.cos(delta_theta) * minDistance
-			self.point_pub_.point.y = self.robot_pose['x'] + math.sin(delta_theta) * minDistance
-			self.point_pub.publish(self.point_pub_)
+			self.track_point_pub_.point.x = self.robot_pose['x'] + math.cos(delta_theta) * minDistance
+			self.track_point_pub_.point.y = self.robot_pose['x'] + math.sin(delta_theta) * minDistance
+			self.track_point_pub.publish(self.track_point_pub_)
 			
 
 if __name__ == '__main__':
