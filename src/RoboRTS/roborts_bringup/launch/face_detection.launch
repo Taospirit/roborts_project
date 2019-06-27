@@ -1,0 +1,14 @@
+<launch>
+    <arg name="image_name" value="/camera/color/image_raw" />
+    <node pkg="decision" name="face_detection" type="face_detection.py" output="screen">
+        <remap from="input_rgb_image" to="$(arg image_name)" />
+        <rosparam>
+            haar_scaleFactor: 1.2
+            haar_minNeighbors: 2
+            haar_minSize: 40
+            haar_maxSize: 60
+        </rosparam>
+        <param name="cascade_1" value="$(find decision)/para/haarcascade_frontalface_alt.xml" />
+        <param name="cascade_2" value="$(find decision)/para/haarcascade_profileface.xml" />
+    </node>
+</launch>

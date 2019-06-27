@@ -88,11 +88,11 @@ class Controller(object):
         # cmd_fric_wheel_client(True)
 
         # path planner action to execute the navigation goal
-        global_path_planner_action_client = actionlib.SimpleActionClient(
+        self.global_path_planner_action_client = actionlib.SimpleActionClient(
             'global_planner_node_action', GlobalPlannerAction)
-        local_path_planner_action_client = actionlib.SimpleActionClient(
+        self.local_path_planner_action_client = actionlib.SimpleActionClient(
             'local_planner_node_action', LocalPlannerAction)
-        local_planner_goal = LocalPlannerGoal
+        self.local_planner_goal = LocalPlannerGoal
 
     # send vel
     def send_vel(self, vel):
@@ -156,16 +156,16 @@ class Controller(object):
     # send navigation goal
     def send_goal(self, goal):
         #rospy.loginfo('send navigation goal')
-        global_path_planner_action_client.send_goal(
-            goal, feedback_cb=global_path_planner_feedback_cb)
-        global_path_planner_action_client.wait_for_result()
+        self.global_path_planner_action_client.send_goal(
+            goal, feedback_cb=self.global_path_planner_feedback_cb)
+        self.global_path_planner_action_client.wait_for_result()
 
     # global path planner feedback
     def global_path_planner_feedback_cb(self, feedback):
         if len(feedback.path.poses) != 0:
-            local_planner_goal.route = feedback.path
-            local_path_planner_action_client.send_goal_and_wait(
-                local_planner_goal)
+            self.local_planner_goal.route = feedback.path
+            self.local_path_planner_action_client.send_goal_and_wait(
+                self.local_planner_goal)
 
 if __name__ == "__main__":
     rospy.init_node('Controller')

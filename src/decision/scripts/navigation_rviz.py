@@ -14,7 +14,6 @@ from roborts_msgs.msg import (ArmorDetection, ArmorDetectionAction,
                               ShootState, SupplierStatus, TwistAccel, TeammateMsg, 
                               Debug, SupplyDistance)
 from geometry_msgs.msg import Twist, PoseStamped
-from battle_env import BattleEnv
 from controller import Controller
 
 class TwistControl():
@@ -37,12 +36,11 @@ def getRvizPoseCallback(data):
     navgoal.goal.pose.orientation.z = data.pose.orientation.z
     navgoal.goal.pose.orientation.w = data.pose.orientation.w
     print ('send_goal!')
-    env.send_goal_force(navgoal)
+    ctrl.send_goal(navgoal)
 
 if __name__ == "__main__":
     rospy.init_node('navigate')
     ctrl = Controller()
-    env = BattleEnv()
 
     navgoal = GlobalPlannerGoal()
     print ('wait topic message: /move_base_simple/goal ...')

@@ -10,7 +10,7 @@
   <!-- Publish static tf -->
   <include file="$(find roborts_bringup)/launch/static_tf.launch" />
   <!-- Run the laser follower -->
-  <include file="$(find lidar_follower)/launch/laser_follower.launch" />
+  <!-- <include file="$(find lidar_follower)/launch/laser_follower.launch" /> -->
 
   <!-- Run the map server -->
   <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(find roborts_bringup)/maps/$(arg map).yaml" respawn="false" /> -->
