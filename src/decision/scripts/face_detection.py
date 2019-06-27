@@ -66,10 +66,10 @@ class faceDetector:
                 cv2.rectangle(cv_image, (self.x, self.y), (self.x+self.w, self.y+self.h), self.color, 2)
                 print("-----Detected Face in image!{}".format(rospy.Time.now().secs))
 
-                self.face_position.face_center_x = (self.x + self.w/2)
-                self.face_position.face_center_y = (self.y + self.h/2)
-                self.face_position.face_offset_x = self.w / 2
-                self.face_position.face_offset_y = self.h / 2
+                self.face_position.face_center_x = int(self.x + self.w/2)
+                self.face_position.face_center_y = int(self.y + self.h/2)
+                self.face_position.face_offset_x = int(self.w / 2)
+                self.face_position.face_offset_y = int(self.h / 2)
                 # cv2.circle(cv_image, (x + w/2, y + h/2), 3, (0, 0, 255),-1)
         else:
             print("-----NO face in sight{}".format(rospy.Time.now().secs))

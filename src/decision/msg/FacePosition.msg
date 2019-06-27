@@ -1,4 +1,4 @@
-float64 face_center_x
-float64 face_center_y
-float64 face_offset_x
-float64 face_offset_y
+int16 face_center_x
+int16 face_center_y
+int16 face_offset_x
+int16 face_offset_y
