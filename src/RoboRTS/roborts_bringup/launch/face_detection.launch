@@ -1,5 +1,6 @@
 <launch>
     <arg name="image_name" value="/camera/color/image_raw" />
+    <arg name="depth_image" value="/depth/image_rect_raw" />
     <node pkg="decision" name="face_detection" type="face_detection.py" output="screen">
         <remap from="input_rgb_image" to="$(arg image_name)" />
         <rosparam>
@@ -11,4 +12,22 @@
         <param name="cascade_1" value="$(find decision)/para/haarcascade_frontalface_alt.xml" />
         <param name="cascade_2" value="$(find decision)/para/haarcascade_profileface.xml" />
     </node>
+
+    <!-- <include file="$(find roborts_bringup)/launch/rs_camera.launch">
+      <arg name="tf_prefix" default="rs"/>
+    </include> -->
+    <include file="$(find realsense2_camera)/launch/rs_aligned_depth.launch" />
+    <!-- <node pkg="decision" type="human_position.py" name="human_position">
+        <remap from="depth_image" to="$(arg depth_image)" />
+    </node> -->
+      <!-- Laser filter -->
+  <!-- <node pkg="laser_filters" type="scan_to_scan_filter_chain" output="screen" name="laser_filter">
+    <rosparam command="load" file="$(find laser_filters)/examples/laser_scan_angular_bounds_filter.yaml" />
+    <remap from="base_scan" to="scan" />
+  </node> -->
+
+    <node pkg="laser_filters" type="rgbd_scan_fusion" name="rgbd_fusion">
+    <remap from="back_camera/depth/image_rect_raw" to="/camera/aligned_depth_to_color/image_raw" />
+    </node>
+
 </launch>

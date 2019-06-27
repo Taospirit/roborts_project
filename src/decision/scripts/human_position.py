@@ -8,6 +8,7 @@ from math import sin, cos, tan, atan2, radians, degrees
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
 from decision.msg import FacePosition, HumanPosition
+from roborts_msgs.msg import HumanPosition
 '''
 x: 30.36
 y: 24.35
@@ -15,6 +16,7 @@ y: 24.35
 
 class humanPos:
     def __init__(self):
+        self.bridge = CvBridge()
         self.center_x, self.center_y, self.offset_x, self.offset_y = 0, 0, 0, 0
         self.visual_angle_x, self.visual_angle_y, self.angle_pitch= radians(30.36), radians(24.35), radians(40)
         self.image_shape = [640, 480]
@@ -22,7 +24,7 @@ class humanPos:
         self.human_position = HumanPosition()
 
         rospy.Subscriber("face_position", FacePosition, self.getFacePosition, queue_size=1)
-        rospy.Subscriber("depth_image", Image, self.getFaceDepth, queue_size=1)
+        rospy.Subscriber("/depth/image_rect_raw", Image, self.getFaceDepth, queue_size=1)
         self.human_position_pub = rospy.Publisher("human_position", HumanPosition, queue_size=1)
         
     def getFacePosition(self, data):
@@ -30,19 +32,32 @@ class humanPos:
         self.center_y = data.face_center_y
         self.offset_x = data.face_offset_x
         self.offset_y = data.face_offset_y
+        print ("center is {:.2f} {:.2f}".format(self.center_x, self.center_y))
 
     def getFaceDepth(self, depth_image_raw):
         if self.center_x == 0 or self.center_y == 0:
             rospy.loginfo("No face in sight....cannot get depth...")
             return -1
         
+        try:
+            depth_image = self.bridge.imgmsg_to_cv2(depth_image_raw, "bgr8")     
+            # frame = np.array(cv_image, dtype=np.uint8)
+        except CvBridgeError, e:
+            print e
+
         num = 0
         self.image_shape = [depth_image_raw.width, depth_image_raw.height]
         #FIXME: 用numpy?
-        for row in range(self.center_y - self.offset_y/2, self.center_y + self.offset_y/2):
-            for col in range(self.center_x - self.offset_x/2, self.center_x + self.offset_x/2):
-                if depth_image_raw.data[row][col] != 0:
-                    temp_depth = depth_image_raw.data[row][col]
+        begin_y = int(self.center_y - self.offset_y/2)
+        end_y = int(self.center_y + self.offset_y/2)
+        begin_x = int(self.center_x - self.offset_x/2)
+        end_x = int(self.center_x + self.offset_x/2)
+        print 
+
+        for row in range(begin_y, end_y):
+            for col in range(begin_x, end_x):
+                if depth_image[row, col] != 0:
+                    temp_depth = depth_image[row, col]
                     self.face_depth_mean = (self.face_depth_mean * num + temp_depth) / (num + 1)
                     num += 1
         rospy.loginfo("face_depth_mean is {}".format(self.face_depth_mean))
@@ -60,10 +75,10 @@ class humanPos:
         self.human_position.human_dist = self.face_depth_mean / cos(angle_y) * cos(angle_y + self.angle_pitch) / 1000
 
 if __name__ == "__main__":
-    rospy.init_node('human_info')
-    try:
-        rospy.lgoinfo('start get human_info from face_info...')
-        humanPos()
-        rospy.spin()
-    except expression as identifier:
-        pass
+    rospy.init_node('human_position')
+    # try:
+    rospy.loginfo('start get human_info from face_info...')
+    humanPos()
+    rospy.spin()
+    # except expression as identifier:
+    #     pass
