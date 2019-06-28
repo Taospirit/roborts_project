@@ -6,7 +6,7 @@ import numpy as np
 import copy
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
-from decision.msg import FacePosition
+from roborts_msgs.msg import FacePosition
 
 class faceDetector:
     def __init__(self):

@@ -18,7 +18,7 @@
 #include "../proto/rgbd_scan_fusion.pb.h"
 
 #include "roborts_msgs/SupplyDistance.h"
-#include "decision/FacePosition.h"
+#include "roborts_msgs/FacePosition.h"
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::LaserScan, sensor_msgs::Image> my_sync_policy;
 
@@ -34,6 +34,8 @@ protected:
 
     // Depth image to calculate distance between realsense and wall
     message_filters::Subscriber<sensor_msgs::Image> supply_depth_image_sub_;
+    message_filters::Subscriber<roborts_msgs::FacePosition> face_position_sub_;
+
     ros::Publisher supply_distance_pub_;
 
     // Components for publishing
@@ -119,7 +121,7 @@ public:
         else
             scan_sub_.registerCallback(boost::bind(&RGBDScanFusion::scan_callback, this, _1));
 
-        face_position_sub_.registerCallback(boost::bind(&RGBDScanFusion::face_callback, this, _1);
+        face_position_sub_.registerCallback(boost::bind(&RGBDScanFusion::face_callback, this, _1));
         supply_depth_image_sub_.registerCallback(boost::bind(&RGBDScanFusion::depth_image_callback, this, _1));
         supply_distance_pub_ = nh_.advertise<roborts_msgs::SupplyDistance>("supply_distance", 1);
     }
@@ -129,11 +131,11 @@ public:
         output_pub_.publish(scan_msg);
     }
 
-    void face_callback(const decision::FacePosition::ConstPtr &face_position){
-        center_x = face_position.face_center_x
-        center_y = face_position.face_center_y
-        offset_x = face_position.face_offset_x / 2
-        offset_y = face_position.face_offset_y / 2
+    void face_callback(const roborts_msgs::FacePosition::ConstPtr &face_position){
+        center_x = face_position->face_center_x;
+        center_y = face_position->face_center_y;
+        offset_x = face_position->face_offset_x / 2;
+        offset_y = face_position->face_offset_y / 2;
     }
 
     // depth image callback
@@ -149,8 +151,8 @@ public:
         float supply_distance = 0; 
         // int depth_filter_size = 50;
         
-        // int pixel_size = 0;
-        int pixel_num = 0
+        int pixel_size = 0;
+        float temp_depth = 0;
         if(!supply_depth_image_.empty())
         {
             // float center_x = supply_depth_image_.cols/2;
@@ -176,18 +178,19 @@ public:
                         // supply_distance += supply_depth_image_.at<float>(center_y+i, center_x+j);
                         // pixel_num ++;
                         temp_depth = supply_depth_image_.at<float>(center_y+i, center_x+j);
-                        supply_distance = (supply_distance * pixel_num + temp_depth) / (pixel_num + 1);
-                        pixel_num ++;
+                        supply_distance = (supply_distance * pixel_size + temp_depth) / (pixel_size + 1);
+                        pixel_size ++;
                     }
                     // std::cout << supply_distance;
                 }
             }
-
-
-            if(pixel_size != 0)
-                supply_distance = supply_distance / pixel_size;
-            else
+            if(pixel_size == 0)
                 supply_distance = -1;
+
+            // if(pixel_size != 0)
+            //     supply_distance = supply_distance / pixel_size;
+            // else
+            //     supply_distance = -1;
         }
         // std::cout << "depth image callback: " << supply_depth_image_.size() << std::endl;
 

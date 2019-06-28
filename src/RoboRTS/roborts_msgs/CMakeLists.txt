@@ -35,6 +35,8 @@ add_message_files(
   SideDetection.msg
   Debug.msg
   SupplyDistance.msg
+  FacePosition.msg
+  HumanPosition.msg
 )
 
 add_message_files(

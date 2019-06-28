@@ -7,8 +7,7 @@ import copy
 from math import sin, cos, tan, atan2, radians, degrees
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
-from decision.msg import FacePosition, HumanPosition
-from roborts_msgs.msg import SupplyDistance
+from roborts_msgs.msg import SupplyDistance, FacePosition, HumanPosition
 '''
 x: 30.36
 y: 24.35
@@ -33,17 +32,17 @@ class humanPos:
         self.center_y = data.face_center_y
         self.offset_x = data.face_offset_x
         self.offset_y = data.face_offset_y
-        print ("center is {:.2f} {:.2f}".format(self.center_x, self.center_y))
+        # print ("center is {:.2f} {:.2f}".format(self.center_x, self.center_y))
 
     def faceDepthCallback(self, data):
-        self.human_position.human_dist = data.supply_distance
+        self.human_position.human_dist = data.supply_distance # meter
         
         delta_pixel_x = self.center_x - self.image_shape[0] / 2
         delta_pixel_y = self.center_y - self.image_shape[1] / 2
-        angle_x = atan2(delta_pixel_x * tan(self.visual_angle_x) / self.image_shape[0])
-        angle_y = atan2(delta_pixel_y * tan(self.visual_angle_y) / self.image_shape[1])
-        rospy.loginfo("Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch) / 1000))
-
+        angle_x = atan2(delta_pixel_x * tan(self.visual_angle_x), self.image_shape[0])
+        angle_y = atan2(delta_pixel_y * tan(self.visual_angle_y), self.image_shape[1])
+        print ("-----Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
+        # rospy.loginfo("Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
         self.human_position.human_angle = degrees(atan2(tan(angle_x) * cos(angle_y), cos(angle_y + self.angle_pitch)))
         self.human_position_pub.publish(self.human_position)
         
