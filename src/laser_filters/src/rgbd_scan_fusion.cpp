@@ -150,48 +150,36 @@ public:
 
         float supply_distance = 0; 
         // int depth_filter_size = 50;
-        
-        int pixel_size = 0;
-        float temp_depth = 0;
-        if(!supply_depth_image_.empty())
-        {
-            // float center_x = supply_depth_image_.cols/2;
-            // float center_y = supply_depth_image_.rows/2;
-            // for(int i = -depth_filter_size/2; i < depth_filter_size/2 + 1; i++)
-            // {
-            //     for(int j = -depth_filter_size/2; j < depth_filter_size/2 + 1; j++)
-            //     {
-            //         if(supply_depth_image_.at<float>(center_y+i, center_x+j) != 0)
-            //         {
-            //             supply_distance += supply_depth_image_.at<float>(center_y+i, center_x+j);
-            //             pixel_size ++;
-            //         }
-            //         // std::cout << supply_distance;
-            //     }
-            // }
-            for(int i = -offset_y; i < offset_y + 1; i++)
-            {
-                for(int j = -offset_x; j < offset_x + 1; j++)
-                {
-                    if(supply_depth_image_.at<float>(center_y+i, center_x+j) != 0)
-                    {
-                        // supply_distance += supply_depth_image_.at<float>(center_y+i, center_x+j);
-                        // pixel_num ++;
-                        temp_depth = supply_depth_image_.at<float>(center_y+i, center_x+j);
-                        supply_distance = (supply_distance * pixel_size + temp_depth) / (pixel_size + 1);
-                        pixel_size ++;
-                    }
-                    // std::cout << supply_distance;
-                }
-            }
-            if(pixel_size == 0)
-                supply_distance = -1;
 
-            // if(pixel_size != 0)
-            //     supply_distance = supply_distance / pixel_size;
-            // else
-            //     supply_distance = -1;
+        if(center_x != 0)
+        {
+            int pixel_size = 0;
+            float temp_depth = 0;
+            if(!supply_depth_image_.empty())
+            {
+                for(int i = -offset_y; i < offset_y + 1; i++)
+                {
+                    for(int j = -offset_x; j < offset_x + 1; j++)
+                    {
+                        if(supply_depth_image_.at<float>(center_y+i, center_x+j) != 0){
+                            temp_depth = supply_depth_image_.at<float>(center_y+i, center_x+j);
+                            supply_distance = (supply_distance * pixel_size + temp_depth) / (pixel_size + 1);
+                            pixel_size ++;
+                        }
+                        // std::cout << supply_distance;
+                    }
+                }
+
+                // if(pixel_size != 0)
+                //     supply_distance = supply_distance / pixel_size;
+                // else
+                //     supply_distance = -1;
+            }
+
         }
+        // else
+        //     supply_distance = 0
+        
         // std::cout << "depth image callback: " << supply_depth_image_.size() << std::endl;
 
         roborts_msgs::SupplyDistance supply_distance_msg;

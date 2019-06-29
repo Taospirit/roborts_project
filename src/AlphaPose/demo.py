@@ -20,6 +20,9 @@ from fn import getTime
 
 from pPose_nms import pose_nms, write_json
 
+import rospy
+import cv2
+
 args = opt
 args.dataset = 'coco'
 if not args.sp:
@@ -29,15 +32,19 @@ if not args.sp:
 if __name__ == "__main__":
     inputpath = args.inputpath
     inputlist = args.inputlist
-    mode = args.mode
+    # mode = args.mode
     if not os.path.exists(args.outputpath):
-        os.mkdir(args.outputpath)
+        os.mkdir(args.outputpath) # 创建输出文件夹
 
     if len(inputlist):
         im_names = open(inputlist, 'r').readlines()
     elif len(inputpath) and inputpath != '/':
-        for root, dirs, files in os.walk(inputpath):
-            im_names = files
+        for root, dirs, files in os.walk(inputpath): # root, dirs, files 文件夹本身地址 \ 文件夹中所有目录名字 \ 文件夹中所有文件
+            im_names = files # list[im1, im2, im3, ...]
+            print (inputlist)
+            print (inputpath) # 输入文件夹地址
+            print (type(im_names))
+            print (len(im_names))
     else:
         raise IOError('Error: must contain either --indir/--list')
 
@@ -102,7 +109,6 @@ if __name__ == "__main__":
 
             ckpt_time, post_time = getTime(ckpt_time)
             runtime_profile['pn'].append(post_time)
-        
         if args.profile:
             # TQDM
             im_names_desc.set_description(

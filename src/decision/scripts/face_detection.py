@@ -72,6 +72,10 @@ class faceDetector:
                 self.face_position.face_offset_y = int(self.h / 2)
                 # cv2.circle(cv_image, (x + w/2, y + h/2), 3, (0, 0, 255),-1)
         else:
+            self.face_position.face_center_x = 0
+            self.face_position.face_center_y = 0
+            self.face_position.face_offset_x = 0
+            self.face_position.face_offset_y = 0
             print("-----NO face in sight{}".format(rospy.Time.now().secs))
         
         # 将识别后的图像转换成ROS消息并发布
