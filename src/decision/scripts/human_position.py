@@ -61,7 +61,7 @@ class humanPos:
             angle_y = atan2(delta_pixel_y * tan(self.visual_angle_y), self.image_shape[1] / 2)
 
             print ("-----------------------------")
-            print ("angle_x is {:.3f}, angle_y is {:.3f}".format(angle_x, angle_y))
+            print ("angle_x is {:.3f}, angle_y is {:.3f}".format(degrees(angle_x), degrees(angle_y)))
 
             self.human_position.human_angle = degrees(atan2(tan(angle_x) * cos(angle_y), cos(angle_y + self.angle_pitch)))
             self.human_height = self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)

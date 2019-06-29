@@ -16,15 +16,6 @@ from roborts_msgs.msg import (ArmorDetection, ArmorDetectionAction,
 from geometry_msgs.msg import Twist, PoseStamped
 from controller import Controller
 
-class TwistControl():
-    def __init__(self, move_x, move_y, move_z, angular_z):
-        self.Twist = Twist()
-        self.Twist.linear.x = move_x
-        self.Twist.linear.y = move_y
-        self.Twist.linear.z = move_z
-        self.Twist.angular.x = 0
-        self.Twist.angular.y = 0
-        self.Twist.angular.z = angular_z
 
 def getRvizPoseCallback(data):
     navgoal.goal.header.frame_id = data.header.frame_id

@@ -12,10 +12,7 @@
   <!-- Run the laser follower -->
   <!-- <include file="$(find lidar_follower)/launch/laser_follower.launch" /> -->
 
-   <include file="$(find roborts_bringup)/launch/rs_camera.launch">
-      <arg name="tf_prefix" default="rs"/>
-    </include>  
-    <include file="$(find roborts_bringup)/launch/face_detection.launch" />
+  <include file="$(find roborts_bringup)/launch/face_detection.launch" />
 
   <!-- Run the map server -->
   <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(find roborts_bringup)/maps/$(arg map).yaml" respawn="false" /> -->
