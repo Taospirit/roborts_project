@@ -1,0 +1,1 @@
+python3 demo.py --indir ./examples/demo --outdir examples/res 

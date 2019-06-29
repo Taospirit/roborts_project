@@ -23,6 +23,7 @@ class humanPos:
         self.last_distance = 0
         self.last_angle = 0
         self.human_position = HumanPosition()
+        self.human_height = 0
 
         rospy.Subscriber("face_position", FacePosition, self.getFacePosition, queue_size=1)
         rospy.Subscriber("supply_distance", SupplyDistance, self.faceDepthCallback, queue_size=1)
@@ -37,12 +38,13 @@ class humanPos:
         # print ("center is {:.2f} {:.2f}".format(self.center_x, self.center_y))
 
     def faceDepthCallback(self, data):
-        # if data.supply_distance == 0:
-        #     self.human_position.human_dist = self.last_distance
-        # else:
-        #     self.human_position.human_dist = data.supply_distance # meter
-        self.human_position.human_dist = (data.supply_distance if (data.supply_distance != 0) else self.last_distance)
-
+        if data.supply_distance == 0:
+            self.human_position.human_dist = self.last_distance
+        else:
+            self.human_position.human_dist = data.supply_distance # meter
+        
+        # self.human_position.human_dist = (data.supply_distance if (data.supply_distance != 0) else self.last_distance)
+        
         if self.center_x == 0:
             self.human_position.human_angle = self.last_angle
         else:
@@ -51,8 +53,9 @@ class humanPos:
             angle_x = atan2(delta_pixel_x * tan(self.visual_angle_x), self.image_shape[0] / 2)
             angle_y = atan2(delta_pixel_y * tan(self.visual_angle_y), self.image_shape[1] / 2)
             self.human_position.human_angle = degrees(atan2(tan(angle_x) * cos(angle_y), cos(angle_y + self.angle_pitch)))
+            self.human_height = self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)
 
-        print ("-----Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
+        print ("-----Height is {}".format(self.human_height))
         # rospy.loginfo("Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
         self.human_position_pub.publish(self.human_position)
 
