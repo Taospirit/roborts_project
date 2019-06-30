@@ -6,7 +6,7 @@ import numpy as np
 import copy
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
-from roborts_msgs.msg import FacePosition
+from roborts_msgs.msg import FacePosition, HumanPosition
 
 class faceDetector:
     def __init__(self):
@@ -40,6 +40,15 @@ class faceDetector:
         self.range_x, self.range_y = 0, 0
         self.image_roi = 0
 
+        rospy.Subscriber("human_position", HumanPosition, self.positionCallback, queue_size=1)
+        self.dist, self.angle = 0, 0
+
+        self.num = 0
+       
+    def positionCallback(self, data):
+        self.dist = data.human_dist
+        self.angle = data.human_angle
+
     def image_callback(self, data):
         # 使用cv_bridge将ROS的图像数据转换成OpenCV的图像格式
         try:
@@ -47,36 +56,41 @@ class faceDetector:
             frame = np.array(cv_image, dtype=np.uint8)
         except CvBridgeError, e:
             print e
-        # if self.x != 0:
-        #     range_y = np.clip([int(self.y - self.h/2), int(self.y + self.h/2*3)], 0, frame.shape[0] - 1)
-        #     range_x = np.clip([int(self.x - self.w/2), int(self.x + self.w/2*3)], 0, frame.shape[1] - 1)
-        #     self.image_roi = frame[range_y[0]:range_y[1], range_x[0]:range_x[1]]
         # 创建灰度图像
         grey_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # self.image_roi = grey_image[range_y[0]:range_y[1], range_x[0]:range_x[1]]
-
 
         # 创建平衡直方图，减少光线影响
         grey_image = cv2.equalizeHist(grey_image)
 
-        image_roi = grey_image[self.range_y[0]:self.range_y[1], self.range_x[0]:self.range_x[1]]
-        
         # 尝试检测人脸
+        # image_roi = grey_image[self.range_y[0]:self.range_y[1], self.range_x[0]:self.range_x[1]]
+        # faces_result_roi = self.detect_face(image_roi)
 
-        faces_result_roi = self.detect_face(self.image_roi)
+        # if len(faces_result_roi) > 0:
+        #     faces_result = faces_result_roi
+        # else:
+        #     faces_result_all = self.detect_face(grey_image)
+        #     faces_result = faces_result_all
 
-        if len(faces_result_roi) > 0:
-            faces_result = faces_result_roi
-        else:
-            faces_result_all = self.detect_face(grey_image)
-            faces_result = faces_result_all
+        faces_result = self.detect_face(grey_image)
 
         # 在opencv的窗口中框出所有人脸区域
         if len(faces_result)>0:
-            for face in faces_result: 
+            for face in faces_result:
+                self.num += 1
                 self.x, self.y, self.w, self.h = face
                 cv2.rectangle(cv_image, (self.x, self.y), (self.x+self.w, self.y+self.h), self.color, 2)
+
+                cv2.putText(cv_image, str(self.dist)[:6]+" mm", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                cv2.putText(cv_image, str(self.angle)[:4]+" degrees", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+
+                if self.num % 10 == 0:
+                    print ('save .png to folder')
+                    cv2.imwrite("/home/a/roborts_project/save/"+str(self.num)+".png", cv_image)
+
+                # cv2.putText(cv_image, str(self.dist)[:6], (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+
+                  # 图像，文字内容，坐标，字体，大小，颜色，字体厚度
                 print("-----Detected Face in image!{}".format(rospy.Time.now().secs))
 
                 self.face_position.face_center_x = int(self.x + self.w/2)
