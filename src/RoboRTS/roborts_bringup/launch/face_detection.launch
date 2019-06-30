@@ -19,7 +19,7 @@
       <remap from="back_camera/depth/image_rect_raw" to="/camera/aligned_depth_to_color/image_raw" />
     </node>
 
-    <node pkg="decision" type="human_position.py" name="human_position" />
+    <!-- <node pkg="decision" type="human_position.py" name="human_position" /> -->
 
     <!-- </node> -->
 

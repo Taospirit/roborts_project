@@ -24,12 +24,15 @@ class twistMove():
         self.ctrl = Controller()
         self.dist, self.angle = 0, 0
 
-        self.max_angle = 30
+        self.max_angle_error = 30
         self.min_rotation_speed, self.max_rotation_speed = 0.2, 1
         self.angle_error = 5
+        self.need_rotation = True
 
-        self.min_move_speed, self.max_move_speed = 0.2, 0.6
-        self.dist_error = 200
+        self.max_dist_error = 600
+        self.min_move_speed, self.max_move_speed = 0.2, 1
+        self.dist_error = 100
+        self.goal_dist = 2000
 
         self.integrator_z = 0
         self.last_time = 0
@@ -44,21 +47,40 @@ class twistMove():
 
     def positionCallback(self, data):
         self.dist, self.angle = data.human_dist, data.human_angle
+        print ("delta_angel is {:.3f}".format(self.angle))
 
         if (abs(self.angle) > self.angle_error):
-            sign = (1 if (self.angle > 0) else -1)
-            v_z = linearP(sign)
-            self.ctrl.send_vel(TwistControl(0, 0, sign * v_z).Twist)
-            print ("delta_angel is {:.3f}".format(self.angle))
+            self.need_rotation = True
 
+            sign = (1 if (self.angle > 0) else -1)
+            v_z = linearP_z()
+            self.ctrl.send_vel(TwistControl(0, 0, sign * v_z).Twist)
         else:
+            self.need_rotation = False
+
             self.ctrl.send_vel(TwistControl(0, 0, 0).Twist)
             print ("------stop rotation for {}------".format(self.angle))
 
-    def linearP(self, sign):
-        k_ = (self.max_rotation_speed - self.min_rotation_speed) / (self.max_angle - self.angle_error) # (1 - 0.5)/(30 - 4)
+        if not self.need_rotation:
+            dist_error = self.goal_dist - self.dist
+            print ("delta_x is {:.3f}".format(dist_error))
+
+            if (abs(dist_error) > self.dist_error):
+                sign = (1 if (dist_error > 0) else -1)
+                v_x = linearP_x()
+                self.ctrl.send_vel(TwistControl(sign * v_x, 0, 0).Twist)
+
+    def linearP_z(self):
+        k_ = (self.max_rotation_speed - self.min_rotation_speed) / (self.max_angle_error - self.angle_error) # (1 - 0.5)/(30 - 4)
         return (abs(self.angle) - self.angle_error) * k_ + self.min_rotation_speed # (x - 5) * k + 0.1
         
+    def linearP_x(self):
+        k_ = (self.max_move_speed - self.min_move_speed) / (self.max_dist_error - self.dist_error)
+        return (abs(self.dist - self.goal_dist) - self.dist_error) * k_ + self.min_move_speed
+
+    def linearP_y(self):
+        pass
+
     def simplePID(self, sign):
         error = self.angle
         P = error
