@@ -21,3 +21,4 @@ src/RoboRTS/roborts_camera/config/camera_param.prototxt
 src/RoboRTS/roborts_detection/armor_detection/constraint_set/config/constraint_set.prototxt
 src/RoboRTS/roborts_camera/mvsua/CameraSettingTool/QT_Demo/Makefile
 core
+img/
