@@ -27,7 +27,7 @@ class humanPos:
 
         self.human_position = HumanPosition()
         self.face_min_dist = 1300 # mm
-        self.face_max_dist = 2800
+        self.face_max_dist = 2700
         self.face_dist = 0
 
         rospy.Subscriber("face_position", FacePosition, self.getFacePosition, queue_size=1)
@@ -82,8 +82,8 @@ class humanPos:
             self.human_position.human_angle = degrees(atan2(tan(angle_x) * cos(angle_y), cos(angle_y + self.angle_pitch)))
             human_dist_parallel = self.face_dist / cos(angle_y) * cos(angle_y + self.angle_pitch)
             self.human_position.human_dist = human_dist_parallel / cos(radians(self.human_position.human_angle))
-            human_height = self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)
 
+            human_height = self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)
             print ("human_dist for parallel is {:.3f}".format(human_dist_parallel))
             print ("human_height is {}".format(human_height))
 
@@ -94,7 +94,6 @@ class humanPos:
             print ("*****clear info of human*****")
        
         print ('')
-        # rospy.loginfo("Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
         self.human_position_pub.publish(self.human_position)
 
         human_theta = self.normalizeTheta(self.rs_theta + self.human_position.human_angle)

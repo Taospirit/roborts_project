@@ -37,6 +37,9 @@ class faceDetector:
         self.image_sub = rospy.Subscriber("input_rgb_image", Image, self.image_callback, queue_size=1)
         self.x, self.y, self.w, self.h = 0, 0, 0, 0
 
+        self.range_x, self.range_y = 0, 0
+        self.image_roi = 0
+
     def image_callback(self, data):
         # 使用cv_bridge将ROS的图像数据转换成OpenCV的图像格式
         try:
@@ -44,25 +47,35 @@ class faceDetector:
             frame = np.array(cv_image, dtype=np.uint8)
         except CvBridgeError, e:
             print e
-
+        # if self.x != 0:
+        #     range_y = np.clip([int(self.y - self.h/2), int(self.y + self.h/2*3)], 0, frame.shape[0] - 1)
+        #     range_x = np.clip([int(self.x - self.w/2), int(self.x + self.w/2*3)], 0, frame.shape[1] - 1)
+        #     self.image_roi = frame[range_y[0]:range_y[1], range_x[0]:range_x[1]]
         # 创建灰度图像
         grey_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # self.image_roi = grey_image[range_y[0]:range_y[1], range_x[0]:range_x[1]]
+
 
         # 创建平衡直方图，减少光线影响
         grey_image = cv2.equalizeHist(grey_image)
 
+        image_roi = grey_image[self.range_y[0]:self.range_y[1], self.range_x[0]:self.range_x[1]]
+        
         # 尝试检测人脸
-        faces_result = self.detect_face(grey_image)
+
+        faces_result_roi = self.detect_face(self.image_roi)
+
+        if len(faces_result_roi) > 0:
+            faces_result = faces_result_roi
+        else:
+            faces_result_all = self.detect_face(grey_image)
+            faces_result = faces_result_all
 
         # 在opencv的窗口中框出所有人脸区域
-        # show_img = copy.deepcopy(cv_image)
-        # cv2.namedWindow('face_detect', cv2.WINDOW_NORMAL)
-        # cv2.resizeWindow('face_detect', (int(640), int(480)))
-        # cv2.moveWindow('face_detect', 100, 100)
         if len(faces_result)>0:
             for face in faces_result: 
                 self.x, self.y, self.w, self.h = face
-                # cv2.rectangle(show_img, (x, y), (x+w, y+h), self.color, 2)
                 cv2.rectangle(cv_image, (self.x, self.y), (self.x+self.w, self.y+self.h), self.color, 2)
                 print("-----Detected Face in image!{}".format(rospy.Time.now().secs))
 
@@ -71,6 +84,8 @@ class faceDetector:
                 self.face_position.face_offset_x = int(self.w / 2)
                 self.face_position.face_offset_y = int(self.h / 2)
                 # cv2.circle(cv_image, (x + w/2, y + h/2), 3, (0, 0, 255),-1)
+                self.range_y = np.clip([int(self.y - self.h/2), int(self.y + self.h/2*3)], 0, frame.shape[0] - 1)
+                self.range_x = np.clip([int(self.x - self.w/2), int(self.x + self.w/2*3)], 0, frame.shape[1] - 1)
         else:
             self.face_position.face_center_x = 0
             self.face_position.face_center_y = 0
