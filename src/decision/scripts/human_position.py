@@ -42,7 +42,7 @@ class humanPos:
         self.point_pub_.header.stamp = rospy.Time()
         self.point_pub_.point.x, self.point_pub_.point.y, self.point_pub_.point.z = 0, 0, 0
         self.robot_pose = {'x':0, 'y':0, 'theta':0}
-        self.rs_theta = 0     
+        self.rs_theta = 0    
 
     def selfPoseCallback(self, data):
         self.robot_pose['x'] = data.pose.pose.position.x
@@ -52,8 +52,8 @@ class humanPos:
         qz = data.pose.pose.orientation.z
         qw = data.pose.pose.orientation.w
         rad = euler_from_quaternion((qx,qy,qz,qw))
-        self.robot_pose['theta'] = normalizeTheta(degrees(rad[2]))
-        self.rs_theta = normalizeTheta(self.robot_pose['theta'] - 180)
+        self.robot_pose['theta'] = self.normalizeTheta(degrees(rad[2]))
+        self.rs_theta = self.normalizeTheta(self.robot_pose['theta'] - 180)
         
     def getFacePosition(self, data):
         self.center_x = data.face_center_x
@@ -97,9 +97,10 @@ class humanPos:
         # rospy.loginfo("Height is {}".format(self.human_position.human_dist / cos(angle_y) * sin(angle_y + self.angle_pitch)))
         self.human_position_pub.publish(self.human_position)
 
-        human_theta = normalizeTheta(self.rs_theta + self.human_position.human_angle)
-        self.point_pub_.point.x = self.human_position.human_dist * cos(radians(human_theta)) + self.robot_pose['x']
-        self.point_pub_.point.y = self.human_position.human_dist * sin(radians(human_theta)) + self.robot_pose['y']
+        human_theta = self.normalizeTheta(self.rs_theta + self.human_position.human_angle)
+        self.point_pub_.point.x = self.human_position.human_dist / 1000 * cos(radians(human_theta)) + self.robot_pose['x'] + 0.15 * cos(radians(self.rs_theta))
+        self.point_pub_.point.y = self.human_position.human_dist / 1000 * sin(radians(human_theta)) + self.robot_pose['y'] + 0.15 * sin(radians(self.rs_theta))
+        print ("self_pose is {:.3f}, {:.3f}".format(self.robot_pose['x'], self.robot_pose['y']))
         self.point_pub.publish(self.point_pub_)
 
     def normalizeTheta(self, theta): # 将角度degree归一化为[-180, 180]
