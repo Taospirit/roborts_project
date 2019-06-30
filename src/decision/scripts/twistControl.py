@@ -53,7 +53,7 @@ class twistMove():
             self.need_rotation = True
 
             sign = (1 if (self.angle > 0) else -1)
-            v_z = linearP_z()
+            v_z = self.linearP_z()
             self.ctrl.send_vel(TwistControl(0, 0, sign * v_z).Twist)
         else:
             self.need_rotation = False
@@ -67,7 +67,7 @@ class twistMove():
 
             if (abs(dist_error) > self.dist_error):
                 sign = (1 if (dist_error > 0) else -1)
-                v_x = linearP_x()
+                v_x = self.linearP_x()
                 self.ctrl.send_vel(TwistControl(sign * v_x, 0, 0).Twist)
 
     def linearP_z(self):
