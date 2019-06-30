@@ -29,10 +29,10 @@ class twistMove():
         self.angle_error = 5
         self.need_rotation = True
 
-        self.max_dist_error = 600
+        self.max_dist_error = 400
         self.min_move_speed, self.max_move_speed = 0.2, 1
-        self.dist_error = 100
-        self.goal_dist = 2000
+        self.dist_error = 200
+        self.goal_dist = 1500
 
         self.integrator_z = 0
         self.last_time = 0
@@ -61,7 +61,7 @@ class twistMove():
             self.ctrl.send_vel(TwistControl(0, 0, 0).Twist)
             print ("------stop rotation for {}------".format(self.angle))
 
-        if not self.need_rotation:
+        if not self.need_rotation and self.dist != 0:
             dist_error = self.goal_dist - self.dist
             print ("delta_x is {:.3f}".format(dist_error))
 
