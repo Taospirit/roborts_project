@@ -25,12 +25,12 @@ class twistMove():
         self.dist, self.angle = 0, 0
 
         self.max_angle_error = 30
-        self.min_rotation_speed, self.max_rotation_speed = 0.2, 1
+        self.min_rotation_speed, self.max_rotation_speed = 0.1, 0.8
         self.angle_error = 5
         self.need_rotation = True
 
         self.max_dist_error = 400
-        self.min_move_speed, self.max_move_speed = 0.2, 1
+        self.min_move_speed, self.max_move_speed = 0.2, 0.8
         self.dist_error = 200
         self.goal_dist = 1500
 
@@ -65,7 +65,7 @@ class twistMove():
             self.need_rotation = True
 
             sign = (1 if (self.angle > 0) else -1)
-            v_z = linearP_z()
+            v_z = self.linearP_z()
             self.ctrl.send_vel(TwistControl(0, 0, sign * v_z).Twist)
         else:
             self.need_rotation = False
@@ -79,7 +79,7 @@ class twistMove():
 
             if (abs(dist_error) > self.dist_error):
                 sign = (1 if (dist_error > 0) else -1)
-                v_x = linearP_x()
+                v_x = self.linearP_x()
                 self.ctrl.send_vel(TwistControl(sign * v_x, 0, 0).Twist)
 
     def linearP_z(self):

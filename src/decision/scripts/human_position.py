@@ -21,7 +21,7 @@ class humanPos:
     def __init__(self):
         self.bridge = CvBridge()
         self.center_x, self.center_y, self.offset_x, self.offset_y = 0, 0, 0, 0
-        self.visual_angle_x, self.visual_angle_y, self.angle_pitch= radians(30.36), radians(24.35), radians(46.7)
+        self.visual_angle_x, self.visual_angle_y, self.angle_pitch= radians(30.36), radians(24.35), radians(45)
         self.image_shape = [640, 480]
         self.not_detect_count, self.not_detect_set = 0, 30
 
