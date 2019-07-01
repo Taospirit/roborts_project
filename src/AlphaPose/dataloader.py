@@ -618,17 +618,20 @@ class DataWriter:
         self.save_video = save_video
         self.stopped = False
         self.final_result = []
+        self.outputpath = '/home/lintao/roborts_project/src/AlphaPose/examples/res'
+        self.dir_folder = 'test'
         # initialize the queue used to store frames read from
         # the video file
         self.Q = Queue(maxsize=queueSize)
         if opt.save_img:
-            if not os.path.exists(opt.outputpath + '/vis'):
-                os.mkdir(opt.outputpath + '/vis')
+            if not os.path.exists(self.outputpath + '/' + self.dir_folder):
+                os.mkdir(self.outputpath + '/' + self.dir_folder)
+        self.show_img = []
 
     def start(self):
         # start a thread to read frames from the file video stream
         t = Thread(target=self.update, args=())
-        t.daemon = True
+        t.daemon = True # 随主线程结束自动结束
         t.start()
         return self
 
@@ -637,13 +640,16 @@ class DataWriter:
         while True:
             # if the thread indicator variable is set, stop the
             # thread
+
             if self.stopped:
                 if self.save_video:
                     self.stream.release()
                 return
+
             # otherwise, ensure the queue is not empty
             if not self.Q.empty():
                 (boxes, scores, hm_data, pt1, pt2, orig_img, im_name) = self.Q.get()
+
                 orig_img = np.array(orig_img, dtype=np.uint8)
                 if boxes is None:
                     if opt.save_img or opt.save_video or opt.vis:
@@ -652,36 +658,50 @@ class DataWriter:
                             cv2.imshow("AlphaPose Demo", img)
                             cv2.waitKey(30)
                         if opt.save_img:
-                            cv2.imwrite(os.path.join(opt.outputpath, 'vis', im_name), img)
+                            cv2.imwrite(os.path.join(self.outputpath, self.dir_folder, im_name), img)
                         if opt.save_video:
                             self.stream.write(img)
                 else:
                     # location prediction (n, kp, 2) | score prediction (n, kp, 1)
-                    if opt.matching:
-                        preds = getMultiPeakPrediction(
-                            hm_data, pt1.numpy(), pt2.numpy(), opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
-                        result = matching(boxes, scores.numpy(), preds)
-                    else:
-                        preds_hm, preds_img, preds_scores = getPrediction(
-                            hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
-                        result = pose_nms(
-                            boxes, scores, preds_img, preds_scores)
+                   
+                    # if opt.matching:
+                    #     preds = getMultiPeakPrediction(
+                    #         hm_data, pt1.numpy(), pt2.numpy(), opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
+                    #     result = matching(boxes, scores.numpy(), preds)
+                    # else:
+
+                    preds_hm, preds_img, preds_scores = getPrediction(
+                        hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
+                        # (hm_data, pt1, pt2, 320, 256, 80, 64)
+                    result = pose_nms(boxes, scores, preds_img, preds_scores)
+                    #  (bbox定位list, bbox评分list, 位姿定位list, 位姿评分list)
+                    # result[ {'keypoints', 'kp_score', 'proposal_score'}, {---}, ...], pPose_nms.py line-114
+
                     result = {
                         'imgname': im_name,
                         'result': result
                     }
-                    self.final_result.append(result)
-                    if opt.save_img or opt.save_video or opt.vis:
-                        img = vis_frame(orig_img, result)
-                        if opt.vis:
-                            cv2.imshow("AlphaPose Demo", img)
-                            cv2.waitKey(30)
-                        if opt.save_img:
-                            cv2.imwrite(os.path.join(opt.outputpath, 'vis', im_name), img)
-                        if opt.save_video:
-                            self.stream.write(img)
+
+                    # self.final_result.append(result)
+
+                    self.show_img = vis_frame(orig_img, result)
+                    cv2.imwrite(os.path.join(self.outputpath, self.dir_folder, im_name), img)
+
+                    # if opt.save_img or opt.save_video or opt.vis:
+                    #     img = vis_frame(orig_img, result)
+                    #     if opt.vis:
+                    #         cv2.imshow("AlphaPose Demo", img)
+                    #         cv2.waitKey(30)
+                    #     if opt.save_img:
+                    #         cv2.imwrite(os.path.join(opt.outputpath, 'vis', im_name), img)
+                    #     if opt.save_video:
+                    #         self.stream.write(img)
             else:
-                time.sleep(0.1)
+                # time.sleep(0.1)
+                pass
+
+    def getImg(self):
+        return self.show_img
 
     def running(self):
         # indicate that the thread is still running

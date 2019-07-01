@@ -20,9 +20,6 @@ from fn import getTime
 
 from pPose_nms import pose_nms, write_json
 
-import rospy
-import cv2
-
 args = opt
 args.dataset = 'coco'
 if not args.sp:
@@ -54,8 +51,8 @@ if __name__ == "__main__":
     # Load detection loader
     print('Loading YOLO model..')
     sys.stdout.flush()
-    det_loader = DetectionLoader(data_loader, batchSize=args.detbatch).start()
-    det_processor = DetectionProcessor(det_loader).start()
+    det_loader = DetectionLoader(data_loader, batchSize=args.detbatch).start() # return self
+    det_processor = DetectionProcessor(det_loader).start() # return self
     
     # Load pose model
     pose_dataset = Mscoco()
@@ -82,13 +79,15 @@ if __name__ == "__main__":
     for i in im_names_desc:
         start_time = getTime()
         with torch.no_grad():
+            #
             (inps, orig_img, im_name, boxes, scores, pt1, pt2) = det_processor.read()
+
             if boxes is None or boxes.nelement() == 0:
                 writer.save(None, None, None, None, None, orig_img, im_name.split('/')[-1])
                 continue
 
-            ckpt_time, det_time = getTime(start_time)
-            runtime_profile['dt'].append(det_time)
+            # ckpt_time, det_time = getTime(start_time)
+            # runtime_profile['dt'].append(det_time)
             # Pose Estimation
             
             datalen = inps.size(0)
@@ -102,19 +101,23 @@ if __name__ == "__main__":
                 hm_j = pose_model(inps_j)
                 hm.append(hm_j)
             hm = torch.cat(hm)
-            ckpt_time, pose_time = getTime(ckpt_time)
-            runtime_profile['pt'].append(pose_time)
-            hm = hm.cpu()
+
+
+            # ckpt_time, pose_time = getTime(ckpt_time)
+            # runtime_profile['pt'].append(pose_time)
+            hm = hm.cpu() # hm放在cpu上
+            # 
             writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split('/')[-1])
 
-            ckpt_time, post_time = getTime(ckpt_time)
-            runtime_profile['pn'].append(post_time)
-        if args.profile:
-            # TQDM
-            im_names_desc.set_description(
-            'det time: {dt:.3f} | pose time: {pt:.2f} | post processing: {pn:.4f}'.format(
-                dt=np.mean(runtime_profile['dt']), pt=np.mean(runtime_profile['pt']), pn=np.mean(runtime_profile['pn']))
-            )
+
+            # ckpt_time, post_time = getTime(ckpt_time)
+            # runtime_profile['pn'].append(post_time)
+        # if args.profile:
+        #     # TQDM
+        #     im_names_desc.set_description(
+        #     'det time: {dt:.3f} | pose time: {pt:.2f} | post processing: {pn:.4f}'.format(
+        #         dt=np.mean(runtime_profile['dt']), pt=np.mean(runtime_profile['pt']), pn=np.mean(runtime_profile['pn']))
+        #     )
 
     print('===========================> Finish Model Running.')
     if (args.save_img or args.save_video) and not args.vis_fast:

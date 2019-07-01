@@ -90,7 +90,6 @@ class faceDetector:
 
                 # cv2.putText(cv_image, str(self.dist)[:6], (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
-                  # 图像，文字内容，坐标，字体，大小，颜色，字体厚度
                 print("-----Detected Face in image!{}".format(rospy.Time.now().secs))
 
                 self.face_position.face_center_x = int(self.x + self.w/2)

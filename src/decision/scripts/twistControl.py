@@ -42,12 +42,24 @@ class twistMove():
         self.Ki_z = 0
         self.Kd_z = 0
 
-
+        self.dist_list = []
+        self.angle_list = []
+        self.info_size = 10
         rospy.Subscriber("human_position", HumanPosition, self.positionCallback, queue_size=1)
 
     def positionCallback(self, data):
-        self.dist, self.angle = data.human_dist, data.human_angle
-        print ("delta_angel is {:.3f}".format(self.angle))
+        # self.dist, self.angle = data.human_dist, data.human_angle
+        self.dist_list.append(data.human_dist)
+        self.angle_list.append(data.human_angle)
+
+        while len(self.dist_list) > self.info_size:
+            self.dist_list.pop(0)
+        while len(self.angle_list) > self.info_size:
+            self.angle_list.pop(0)
+
+        self.dist, self.angle = np.mean(self.dist_list), np.mean(self.angle_list)
+        print ("control dist {:.3f} and angle {:.3f} ".format(self.dist, self.angle))
+        # print ("delta_angle is {:.3f}".format(self.angle))
 
         if (abs(self.angle) > self.angle_error):
             self.need_rotation = True

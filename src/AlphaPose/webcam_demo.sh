@@ -1,0 +1,1 @@
+python3 webcam_demo.py --webcam 0 --outdir examples/res

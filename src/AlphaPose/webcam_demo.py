@@ -32,6 +32,10 @@ def loop():
     while True:
         yield n
         n += 1
+def print_l(list):
+    for i in list:
+        print (type(i))
+        print (len(i))
 
 if __name__ == "__main__":
     webcam = args.webcam
@@ -60,6 +64,7 @@ if __name__ == "__main__":
 
     # Data writer
     save_path = os.path.join(args.outputpath, 'AlphaPose_webcam'+webcam+'.avi')
+    # 开始检测并绘制图像
     writer = DataWriter(args.save_video, save_path, cv2.VideoWriter_fourcc(*'XVID'), fps, frameSize).start()
 
     runtime_profile = {
@@ -71,39 +76,57 @@ if __name__ == "__main__":
     print('Starting webcam demo, press Ctrl + C to terminate...')
     sys.stdout.flush()
     im_names_desc =  tqdm(loop())
-    batchSize = args.posebatch
+    batchSize = args.posebatch # 默认值: 80
     for i in im_names_desc:
         try:
             start_time = getTime()
+            print ("------------------")
             with torch.no_grad():
+
+                 # 人体数据
                 (inps, orig_img, im_name, boxes, scores, pt1, pt2) = det_processor.read()
+                info = (inps, orig_img, im_name, boxes, scores, pt1, pt2)
+                print_l(info)
+
                 if boxes is None or boxes.nelement() == 0:
+                    # 存储进queue
                     writer.save(None, None, None, None, None, orig_img, im_name.split('/')[-1])
                     continue
-
-                ckpt_time, det_time = getTime(start_time)
-                runtime_profile['dt'].append(det_time)
-                # Pose Estimation
                 
-                datalen = inps.size(0)
+                ###
+                # ckpt_time, det_time = getTime(start_time) # 计算间隔时间
+                # runtime_profile['dt'].append(det_time) # profile 计算时间间隔
+                ###
+
+                
+                # Pose Estimation
+                # 计算更新hm
+                datalen = inps.size(0) # 使用inps数据
                 leftover = 0
-                if (datalen) % batchSize:
+                if (datalen) % batchSize: # datalen 对80取余
                     leftover = 1
-                num_batches = datalen // batchSize + leftover
+                num_batches = datalen // batchSize + leftover # datalen对80取整, 加上left_over
                 hm = []
                 for j in range(num_batches):
-                    inps_j = inps[j*batchSize:min((j +  1)*batchSize, datalen)].cpu()
+                    inps_j = inps[j*batchSize:min((j +  1)*batchSize, datalen)].cpu() # 使用inps数据
                     hm_j = pose_model(inps_j)
                     hm.append(hm_j)
                 hm = torch.cat(hm)
-                ckpt_time, pose_time = getTime(ckpt_time)
-                runtime_profile['pt'].append(pose_time)
 
-                hm = hm.cpu().data
+                ###
+                # ckpt_time, pose_time = getTime(ckpt_time)
+                # runtime_profile['pt'].append(pose_time)
+                ###
+
+                hm = hm.cpu().data # 把hm的数据放在cpu上
+                # 存储进queue
                 writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split('/')[-1])
 
-                ckpt_time, post_time = getTime(ckpt_time)
-                runtime_profile['pn'].append(post_time)
+                ###
+                # ckpt_time, post_time = getTime(ckpt_time)
+                # runtime_profile['pn'].append(post_time)
+                ###
+
             if args.profile:
                 # TQDM
                 im_names_desc.set_description(
