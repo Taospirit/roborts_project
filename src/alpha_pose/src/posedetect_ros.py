@@ -30,6 +30,7 @@ from sensor_msgs.msg import Image
 import rospy
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
+from time import sleep
 
 
 args = opt
@@ -46,12 +47,14 @@ class image_sub:
 
     def imageCallback(self, img_data):
         try:
+            # print ("got it")
             self.img_bgr8 = CvBridge().imgmsg_to_cv2(img_data, "bgr8")
         except CvBridgeError:
             print (CvBridgeError)
 
     def getImage(self):
         print ("self.img_bgr8 type is {}".format(type(self.img_bgr8)))
+        print (np.array(self.img_bgr8).shape)
         return np.array(self.img_bgr8)
 
 
@@ -63,10 +66,10 @@ class alphaPoseDectector:
         self.pose_dataset = Mscoco()
         self.image_sub = image_sub()
 
-        self.start()
-    
         self.pose_img_pub = rospy.Publisher("pose_detect_img", Image, queue_size=1)
         rospy.Subscriber("/camera/color/image_raw", Image, self.pubPoseImg, queue_size=1)
+        sleep(0.5)
+        self.start()
 
     def start(self):
         self.image_list.append(self.image_sub.getImage())
@@ -116,8 +119,13 @@ class alphaPoseDectector:
                 self.writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split('/')[-1])
 
     def pubPoseImg(self, data):
-        print ("pub pose_img")
-        self.pose_img_pub.publish(self.bridge.cv2_to_imgmsg(self.writer.getImg(), "bgr8"))
+        # print ("ready to pub pose_img..")
+        sleep(0.5)
+        if self.writer == 0:
+            pass
+        else:
+            print ("pub pose_img!")
+            self.pose_img_pub.publish(self.bridge.cv2_to_imgmsg(self.writer.getImg(), "bgr8"))
 
 
     # def imageCallback(self, data):
