@@ -140,17 +140,17 @@ class ImageLoader:
             self.Q.put((im, inp, im_name))
 
     def getitem_yolo(self):
-        for i in range(self.num_batches):
+        for i in range(self.num_batches): # for i in range(1):
             img = []
             orig_img = []
             im_name = []
             im_dim_list = []
-            for k in range(i*self.batchSize, min((i +  1)*self.batchSize, self.datalen)):
+            for k in range(i*self.batchSize, min((i +  1)*self.batchSize, self.datalen)): # for k in range(0, 1):
                 inp_dim = int(opt.inp_dim)
                 # im_name_k = self.imglist[k].rstrip('\n').rstrip('\r')
 
                 # im_name_k = os.path.join(self.img_dir, im_name_k)
-                img_k, orig_img_k, im_dim_list_k = prep_image(im_name_k, inp_dim)
+                img_k, orig_img_k, im_dim_list_k = prep_frame(self.imglist[k], inp_dim)
             
                 img.append(img_k)
                 orig_img.append(orig_img_k)
