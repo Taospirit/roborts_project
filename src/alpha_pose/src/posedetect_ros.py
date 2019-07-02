@@ -52,7 +52,7 @@ class image_sub:
 
     def getImage(self):
         print ("self.img_bgr8 type is {}".format(type(self.img_bgr8)))
-        return self.img_bgr8    
+        return np.array(self.img_bgr8)
 
 
 class alphaPoseDectector:
