@@ -37,7 +37,7 @@ else:
 
 
 class ImageLoader:
-    def __init__(self, im_names, img_sorce, batchSize=1, format='yolo', queueSize=50):
+    def __init__(self, im_names, img_sorce, batchSize=1, format='yolo', queueSize=256):
         self.img_sorce = img_sorce
         self.img_dir = opt.inputpath
         self.imglist = im_names
@@ -55,7 +55,7 @@ class ImageLoader:
         # self.num_batches = self.datalen // batchSize + leftover # 1 // 1 + 0 = 1
 
         # initialize the queue used to store data
-        self.Q = mp.Queue(maxsize=queueSize)
+        self.Q = LifoQueue(maxsize=queueSize)
 
     def start(self):
         p = mp.Process(target=self.getitem_yolo, args=()) 
