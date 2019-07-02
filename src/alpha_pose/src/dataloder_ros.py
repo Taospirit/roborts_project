@@ -58,7 +58,7 @@ class ImageLoader:
         self.Q = LifoQueue(maxsize=queueSize)
 
     def start(self):
-        p = mp.Process(target=self.getitem_yolo, args=()) 
+        p = Thread(target=self.getitem_yolo, args=()) 
         p.daemon = True
         p.start()
         return self
@@ -125,10 +125,10 @@ class DetectionLoader:
         
         # initialize the queue used to store frames read from
         # the video file
-        self.Q = mp.Queue(maxsize=queueSize)
+        self.Q = LifoQueue(maxsize=queueSize)
 
     def start(self):
-        p = mp.Process(target=self.update, args=())
+        p = Thread(target=self.update, args=())
         p.daemon = True
         p.start()
         return self
@@ -200,11 +200,11 @@ class DetectionProcessor:
         self.stopped = False
 
         # initialize the queue used to store data
-        self.Q = pQueue(maxsize=queueSize)
+        self.Q = LifoQueue(maxsize=queueSize)
 
     def start(self):
         # start a thread to read frames from the file video stream
-        p = mp.Process(target=self.update, args=())
+        p = Thread(target=self.update, args=())
         p.daemon = True
         p.start()
         return self
