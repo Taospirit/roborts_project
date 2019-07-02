@@ -51,6 +51,7 @@ class image_sub:
             print (CvBridgeError)
 
     def getImage(self):
+        print ("self.img_bgr8 type is {}".format(type(self.img_bgr8)))
         return self.img_bgr8    
 
 
@@ -70,7 +71,7 @@ class alphaPoseDectector:
     def start(self):
         self.image_list.append(self.image_sub.getImage())
         # Load input images
-        data_loader = ImageLoader(self.image_list, batchSize=args.detbatch, format='yolo', self.image_sub).start() # detbatch = 1
+        data_loader = ImageLoader(self.image_list, self.image_sub, batchSize=args.detbatch, format='yolo').start() # detbatch = 1
 
         # Load detection loader
         print('Loading YOLO model..')

@@ -33,7 +33,7 @@ def letterbox_image(img, inp_dim):
 
 def prep_image(img, inp_dim):
     """
-    Prepare image for inputting to the neural network.
+    Prepare image for inputting to the neural network.o
 
     Returns a Variable
     """

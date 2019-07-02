@@ -37,7 +37,7 @@ else:
 
 
 class ImageLoader:
-    def __init__(self, im_names, batchSize=1, format='yolo', queueSize=50, img_sorce):
+    def __init__(self, im_names, img_sorce, batchSize=1, format='yolo', queueSize=50):
         self.img_sorce = img_sorce
         self.img_dir = opt.inputpath
         self.imglist = im_names
@@ -215,7 +215,7 @@ class DetectionProcessor:
             
             with torch.no_grad():
                 (orig_img, im_name, boxes, scores, inps, pt1, pt2) = self.detectionLoader.read()
-                 with self.detectionLoader.Q.mutex:
+                with self.detectionLoader.Q.mutex:
                     self.detectionLoader.Q.queue.clear()
                 if boxes is None or boxes.nelement() == 0:
                     while self.Q.full():
