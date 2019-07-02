@@ -82,6 +82,7 @@ class Image_loader(data.Dataset):
 
 class ImageLoader:
     def __init__(self, im_names, batchSize=1, format='yolo', queueSize=50):
+        self.img_name_num = 0
         self.img_dir = opt.inputpath
         self.imglist = im_names
         self.transform = transforms.Compose([
@@ -91,11 +92,11 @@ class ImageLoader:
         self.format = format
 
         self.batchSize = batchSize
-        self.datalen = len(self.imglist)
+        self.datalen = len(self.imglist) # 1
         leftover = 0
-        if (self.datalen) % batchSize:
+        if (self.datalen) % batchSize: # 1 % 1 = 0
             leftover = 1
-        self.num_batches = self.datalen // batchSize + leftover
+        self.num_batches = self.datalen // batchSize + leftover # 1 // 1 + 0 = 1
 
         # initialize the queue used to store data
         if opt.sp:
@@ -147,14 +148,14 @@ class ImageLoader:
             for k in range(i*self.batchSize, min((i +  1)*self.batchSize, self.datalen)):
                 inp_dim = int(opt.inp_dim)
                 # im_name_k = self.imglist[k].rstrip('\n').rstrip('\r')
-                im_name_k = self.imglist[k].rstrip('\r')
 
-                im_name_k = os.path.join(self.img_dir, im_name_k)
+                # im_name_k = os.path.join(self.img_dir, im_name_k)
                 img_k, orig_img_k, im_dim_list_k = prep_image(im_name_k, inp_dim)
             
                 img.append(img_k)
                 orig_img.append(orig_img_k)
-                im_name.append(im_name_k)
+                # im_name.append(im_name_k)
+                im_name.append(str(self.img_name_num)+'.jpg')
                 im_dim_list.append(im_dim_list_k)
 
             with torch.no_grad():
@@ -168,6 +169,7 @@ class ImageLoader:
                 time.sleep(2)
             
             self.Q.put((img, orig_img, im_name, im_dim_list))
+            self.img_name_num += 1
 
     def getitem(self):
         return self.Q.get()

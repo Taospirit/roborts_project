@@ -34,7 +34,7 @@ class faceDetector:
         self.color = (50, 255, 50)
 
         # 初始化订阅rgb格式图像数据的订阅者，此处图像topic的话题名可以在launch文件中重映射
-        self.image_sub = rospy.Subscriber("input_rgb_image", Image, self.image_callback, queue_size=1)
+        rospy.Subscriber("input_rgb_image", Image, self.image_callback, queue_size=1)
         self.x, self.y, self.w, self.h = 0, 0, 0, 0
 
         self.range_x, self.range_y = 0, 0
