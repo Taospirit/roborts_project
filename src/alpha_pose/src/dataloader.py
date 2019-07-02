@@ -146,7 +146,9 @@ class ImageLoader:
             im_dim_list = []
             for k in range(i*self.batchSize, min((i +  1)*self.batchSize, self.datalen)):
                 inp_dim = int(opt.inp_dim)
-                im_name_k = self.imglist[k].rstrip('\n').rstrip('\r')
+                # im_name_k = self.imglist[k].rstrip('\n').rstrip('\r')
+                im_name_k = self.imglist[k].rstrip('\r')
+
                 im_name_k = os.path.join(self.img_dir, im_name_k)
                 img_k, orig_img_k, im_dim_list_k = prep_image(im_name_k, inp_dim)
             
@@ -273,8 +275,8 @@ class DetectionLoader:
     def __init__(self, dataloder, batchSize=1, queueSize=1024):
         # initialize the file video stream along with the boolean
         # used to indicate if the thread should be stopped or not
-        self.det_model = Darknet("yolo/cfg/yolov3-spp.cfg")
-        self.det_model.load_weights('models/yolo/yolov3-spp.weights')
+        self.det_model = Darknet("/home/a/roborts_project/src/alpha_pose/src/yolo/cfg/yolov3-spp.cfg")
+        self.det_model.load_weights('/home/a/roborts_project/src/alpha_pose/src/models/yolo/yolov3-spp.weights')
         self.det_model.net_info['height'] = opt.inp_dim
         self.det_inp_dim = int(self.det_model.net_info['height'])
         assert self.det_inp_dim % 32 == 0

@@ -51,6 +51,8 @@
   </node>
 
   <node pkg="decision" type="pose_update.py" name="pose_update" />
+  <node pkg="decision" type="human_position.py" name="human_position" />
+
   <!-- Run the rviz -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find roborts_bringup)/rviz/$(arg rviz_name).rviz" />
   

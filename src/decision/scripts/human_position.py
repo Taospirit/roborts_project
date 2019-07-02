@@ -26,7 +26,7 @@ class humanPos:
         self.not_detect_count, self.not_detect_set = 0, 30
 
         self.human_position = HumanPosition()
-        self.face_min_dist = 1300 # mm
+        self.face_min_dist = 500 # mm
         self.face_max_dist = 2700
         self.face_dist = 0
 

@@ -53,16 +53,17 @@ class alphaPoseDectector():
 
 
 
-        rospy.Subscriber("rgd_image_raw", Image, self.imageCallback, queue_size=1)
+        rospy.Subscriber("/camera/color/image_raw", Image, self.imageCallback, queue_size=1)
         self.pose_img_pub = rospy.Publisher("pose_detect_img", Image, queue_size=1)
         # self.image_pose_pub = rospy.Publisher("pose_show", FacePosition, queue_size=1)
 
     def imageCallback(self, data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            # cv_image = []
             self.image_list.append(cv_image)     
-        except CvBridgeError, e:
-            print (e)
+        except CvBridgeError:
+            print (CvBridgeError)
 
         while len(self.image_list) > 1:
             self.image_list.pop(0)
@@ -100,7 +101,7 @@ class alphaPoseDectector():
         self.writer = DataWriter(args.save_video).start()
 
         data_len = data_loader.length()
-        # im_names_desc = tqdm(range(data_len))
+        im_names_desc = tqdm(range(data_len))
 
         batchSize = args.posebatch # 80
         for i in im_names_desc:
@@ -163,6 +164,7 @@ class alphaPoseDectector():
 if __name__ == "__main__":
     try:
         rospy.init_node('pose_detect_ros')
+        print ("start to pose detect")
         pose = alphaPoseDectector()
         rospy.spin()
     except KeyboardInterrupt:

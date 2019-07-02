@@ -14,7 +14,11 @@
     </node> -->
 
     <include file="$(find realsense2_camera)/launch/rs_aligned_depth.launch" />
-
+    
+    <!-- <node pkg="alphaPose" type="posedetect_ros.py" name="pose_detect">
+        <remap from="rgd_image_raw" to="/camera/color/image_raw" />
+    </node> -->
+    
     <!-- <node pkg="laser_filters" type="rgbd_scan_fusion" name="rgbd_fusion">
       <remap from="back_camera/depth/image_rect_raw" to="/camera/aligned_depth_to_color/image_raw" />
     </node> -->

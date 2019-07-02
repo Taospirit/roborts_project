@@ -25,12 +25,12 @@ class twistMove():
         self.dist, self.angle = 0, 0
 
         self.max_angle_error = 30
-        self.min_rotation_speed, self.max_rotation_speed = 0.1, 0.8
-        self.angle_error = 5
+        self.min_rotation_speed, self.max_rotation_speed = 0.1, 0.6
+        self.angle_error = 10
         self.need_rotation = True
 
         self.max_dist_error = 400
-        self.min_move_speed, self.max_move_speed = 0.2, 0.8
+        self.min_move_speed, self.max_move_speed = 0.1, 0.7
         self.dist_error = 200
         self.goal_dist = 1500
 
